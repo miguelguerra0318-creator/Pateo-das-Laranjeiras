@@ -6,6 +6,19 @@
 
 ---
 
+## Regras transversais de estilo (aplicar a todo o conteúdo social)
+
+- **Um ângulo emocional por peça.** Se o brief pede 3 posts, produzir 3 ângulos distintos, com registos distintos. Nunca misturar dentro do mesmo post. Dentro do segmento casamento, os sub-ângulos e os seus registos são:
+  1. **Casa / charme / história / séc. XIX** → registo **clássico, emotivo, refinado**. Público principal: noiva, mãe da noiva, wedding planner. Palavras-âncora: alma, história, gerações, autêntico, luz, tempo.
+  2. **Flexibilidade / serviço / horários / cada um ao seu ritmo** → registo **relaxado, quente, divertido**. Público principal: madrinhas, padrinhos, grupo. Palavras-âncora: sem pressa, ao vosso ritmo, entre amigos, calma, respirar.
+  3. **Exclusividade / casa inteira / Pack Noiva/o** → registo **íntimo "só para vocês"**. Público principal: noivos a decidir alojamento do grupo. Palavras-âncora: só para vocês, exclusividade, casa só vossa, sem outros hóspedes.
+
+- Nunca dizer "casa com história" **e** "flexibilidade de horários" no mesmo post — cada ângulo merece a sua peça e o seu tom.
+
+- **Escolher hashtags relevantes ao ângulo** (ver secção "Hashtags recomendados por segmento" ao final deste ficheiro). Nunca criar hashtags a partir das próprias palavras da mensagem (ex.: `#flexibilidadedehorarios` é fraco). Usar famílias reais de trends do mercado português.
+
+---
+
 ## 1. Grupos de casamento — PÚBLICO PRINCIPAL
 
 ### Duas audiências (importante)
@@ -36,6 +49,7 @@ Preparativos, exclusividade da casa inteira, Pack Noiva/o, brunch, flexibilidade
 - **Nunca** sugerir que a cerimónia, festa ou copo-de-água acontece no Páteo. Somos preparativos + alojamento + brunch; o evento é noutro espaço.
 - Não indicar preços (sob consulta).
 - Não prometer roupões/produtos de banho (não existem).
+- **Nunca mencionar "cozinha partilhada" (ou cozinhar) neste segmento.** O perfil é noiva / madrinhas / padrinhos / convidado — quer descanso e qualidade de serviço, não self-catering. A cozinha partilhada dos quartos Ocre/Brick é benefício para peregrinos/Montejunto/alojamento simples, nunca para casamentos.
 
 ### Onde aponta
 CTA por email. Para B2B, o conteúdo alimenta o outreach às quintas (ver base de dados de Parceiros).
@@ -54,7 +68,8 @@ Conforto e proximidade ao espaço do evento; possibilidade de vários quartos ou
 Proximidade, tranquilidade, casa acolhedora, opção de reservar vários quartos juntos.
 
 ### Evitar
-Mesmo posicionamento "não venue"; sem preços.
+- Mesmo posicionamento "não venue"; sem preços.
+- **Nunca mencionar "cozinha partilhada"** — mesmo racional que casamento: o convidado de casamento quer descanso e serviço, não cozinhar.
 
 ### Onde aponta
 CTA por email; pode ser difundido pelas quintas junto dos seus convidados.
@@ -102,3 +117,41 @@ CTA por email; conteúdo de descoberta (blog/SEO sobre a região) para atrair pr
 ## Nota transversal
 
 O **alojamento simples** (quartos individuais) mantém-se a par do Pack Noiva/o — nem todo o conteúdo é casamento. Equilibrar: casamentos como motor principal, mas sem apagar os segmentos residuais que enchem noites fora de época.
+
+---
+
+## Hashtags recomendados por segmento
+
+Escolher **3 a 6 hashtags** por post, alinhadas com o ângulo do post. Não usar todas. Priorizar as que estão em uso real no mercado português (rastreadas por noivas/wedding planners) sobre hashtags genéricas. Ajustar conforme a sócia observar o que funciona na conta real.
+
+### Casamento — ângulo casa/charme/história (registo clássico)
+`#noivaportuguesa` · `#casamentoportugal` · `#casamentosportugueses` · `#alojamentodecharme` · `#casacomhistoria` · `#casaagricola` · `#seculoXIX` · `#patrimonio` · `#casamentoruralportugal`
+
+### Casamento — ângulo preparativos/manhã (registo emotivo)
+`#preparativosdecasamento` · `#manhadanoiva` · `#vesperadecasamento` · `#bridalgetready` · `#madrinhasdecasamento` · `#casamento2026` · `#casamento2027`
+
+### Casamento — ângulo grupo/flexibilidade (registo relaxado)
+`#casamentoentrafemigos` · `#madrinhas` · `#padrinhosdecasamento` · `#groupescapeportugal` · `#casamentoemgrupo` · `#weekendemgrupo`
+
+### Casamento — ângulo Pack/exclusividade
+`#casainteiraportugal` · `#exclusividade` · `#packnoiva` · `#packnoivos` · `#privatevilla` · `#casaparaeventos` (não — a evitar por ambiguidade; usar `#casaparanoivas`)
+
+### Localização (usar em qualquer ângulo de casamento)
+`#alenquer` · `#oeste` · `#regiãooeste` · `#turismodeoeste` · `#distritodelisboa` · `#pertodelisboa`
+
+### Convidados de casamento
+`#convidadosdecasamento` · `#alojamentoparaconvidados` · `#casamentonaregiao` · `#weekendportugal` · `#escapadaemgrupo` · `#ficarperto` + hashtags de localização acima.
+
+### Peregrinos (Caminho por Alenquer)
+`#caminhodesantiago` · `#caminhoportugues` · `#peregrino` · `#peregrinos` · `#caminhoportuguescoral` · `#alojamentoperegrinos` · `#alenquer`
+
+### Serra de Montejunto / natureza
+`#serrademontejunto` · `#paisagemprotegida` · `#turismodenatureza` · `#turismorural` · `#trilhosportugal` · `#interiorportugues` · `#naturezaportuguesa`
+
+### Geral / alojamento
+`#alojamentolocal` · `#al896902` · `#bnbportugal` · `#turismoportugues` · `#alojamentodecharme` · `#escapaditaportugal` · `#casaagricola`
+
+### Nunca
+- Nunca criar hashtags CamelCase a partir das próprias palavras da mensagem (ex.: `#flexibilidadedehorarios`, `#manhaSempressa`). São inúteis para descoberta.
+- Nunca usar `#weddingvenue`, `#casamentosnoespaço`, `#eventosnoPateo` ou variações — violam o posicionamento "não venue".
+- Nunca inflar posts com 20+ hashtags. **3-6 focadas** superam sempre uma lista extensa.

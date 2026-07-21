@@ -1,0 +1,81 @@
+name: Páteo Content Studio — queue
+
+# ─────────────────────────────────────────────────────────────────────────
+# Cron: a cada 15 min, entre 07:00 e 20:45 UTC.
+#
+# Isto cobre grosso modo 08:00–21:00 hora de Lisboa (com pequeno
+# deslocamento sazonal — GitHub cron não conhece DST):
+#   Inverno (UTC=Lisboa):  07:00–20:45 Lisboa
+#   Verão (UTC+1):         08:00–21:45 Lisboa
+#
+# Custo em minutos GitHub (repo privado, 2000 min/mês grátis):
+#   56 runs/dia × ~30 dias ≈ 1680 min/mês em runs "vazias" (queue.js sai
+#   em segundos quando não há pending). Sobra ~320 min/mês para os runs
+#   que efectivamente geram conteúdo (~3–6 min cada). Cabe com folga.
+#
+# Se um dia precisares de mais frequência, tornar o repo público
+# desbloqueia minutos ilimitados.
+# ─────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    - cron: '*/15 7-20 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  # Nunca correr duas queues em paralelo — se uma cron chega enquanto
+  # outra está a processar, a nova espera (não cancela).
+  group: studio-queue
+  cancel-in-progress: false
+
+jobs:
+  queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25   # ligeiramente acima do timeout interno do queue.js (20 min)
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências do projeto
+        run: npm ci
+
+      - name: Instalar Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Verificar instalação do Claude Code
+        run: |
+          claude --version
+          which claude
+
+      - name: Preparar credenciais do Firebase (service account)
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT não está definido no repositório."
+            exit 1
+          fi
+          SA_PATH="$RUNNER_TEMP/firebase-sa.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$SA_PATH"
+          # Sanity check — o ficheiro deve ser JSON válido com project_id
+          node -e "const j = JSON.parse(require('fs').readFileSync('$SA_PATH', 'utf8')); if (!j.project_id) throw new Error('project_id em falta na service account'); console.log('service account OK — project:', j.project_id);"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$SA_PATH" >> "$GITHUB_ENV"
+
+      - name: Correr queue.js
+        env:
+          # Token OAuth da subscrição Claude (gerado localmente com `claude setup-token`).
+          # O Claude Code CLI usa esta env var automaticamente em modo headless.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "::error::Secret CLAUDE_CODE_OAUTH_TOKEN não está definido no repositório."
+            exit 1
+          fi
+          node scripts/queue.js

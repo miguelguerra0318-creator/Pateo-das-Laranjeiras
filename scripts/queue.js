@@ -1,0 +1,270 @@
+// scripts/queue.js
+//
+// Orquestrador do Páteo Content Studio.
+// Lê pedidos "pending" do Firestore, invoca Claude Code em modo headless para
+// processar cada um (via .claude/CLAUDE.md e sub-agentes), e escreve os
+// resultados de volta ao Firestore. Actualiza também /system/status para o
+// health indicator na app.
+//
+// Runnable localmente e em CI. Toda a config vem de env vars:
+//   GOOGLE_APPLICATION_CREDENTIALS  → path para o JSON da service account
+//   CLAUDE_BIN                       → opcional (default: "claude")
+//   BATCH_LIMIT                      → opcional (default: 10)
+//   CLAUDE_TIMEOUT_MS                → opcional (default: 20 min)
+//
+// Uso local (PowerShell):
+//   $env:GOOGLE_APPLICATION_CREDENTIALS = "C:\Users\luis_\credentials\pateo\firebase-service-account.json"
+//   npm run queue
+
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { resolve as resolvePath } from "node:path";
+import { initializeApp, cert } from "firebase-admin/app";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+
+// ─── Config ─────────────────────────────────────────────────────────────
+
+const BATCH_LIMIT = parseInt(process.env.BATCH_LIMIT || "10", 10);
+const CLAUDE_BIN = process.env.CLAUDE_BIN
+  || (process.platform === "win32" ? "claude.exe" : "claude");
+const CLAUDE_TIMEOUT_MS = parseInt(process.env.CLAUDE_TIMEOUT_MS || String(20 * 60 * 1000), 10);
+const WORK_DIR = ".work";
+const BATCH_FILE = `${WORK_DIR}/batch.json`;
+const OUTPUT_FILE = `${WORK_DIR}/output.json`;
+
+// ─── Helpers ────────────────────────────────────────────────────────────
+
+function log(msg) {
+  console.log(`[${new Date().toISOString()}] ${msg}`);
+}
+
+function resolveCredentials() {
+  const path = process.env.GOOGLE_APPLICATION_CREDENTIALS
+    || process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+  if (!path) {
+    throw new Error(
+      "GOOGLE_APPLICATION_CREDENTIALS (ou FIREBASE_SERVICE_ACCOUNT_PATH) não definido. " +
+      "Aponta para o ficheiro JSON da service account do Firebase."
+    );
+  }
+  return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function ensureWorkDir() {
+  if (!existsSync(WORK_DIR)) mkdirSync(WORK_DIR, { recursive: true });
+}
+
+function cleanWorkFiles() {
+  for (const f of [BATCH_FILE, OUTPUT_FILE]) {
+    if (existsSync(f)) rmSync(f);
+  }
+}
+
+async function touchStatus(db, startTime, count, status = "ok", extra = {}) {
+  await db.collection("system").doc("status").set({
+    lastRun: FieldValue.serverTimestamp(),
+    lastRunProcessed: count,
+    lastRunStatus: status,
+    lastRunStartedAt: startTime.toISOString(),
+    ...extra
+  }, { merge: true });
+}
+
+// ─── Invocação do Claude Code headless ──────────────────────────────────
+
+function invokeClaudeCode() {
+  return new Promise((resolve, reject) => {
+    const prompt =
+      "Lê o ficheiro .claude/CLAUDE.md e segue as instruções: processa .work/batch.json " +
+      "orquestrando os sub-agentes (dispatcher → especialista → art-director → editor-qa) " +
+      "e escreve o resultado final em .work/output.json exactamente no formato descrito. " +
+      "Não escrevas resumos nem explicações no terminal.";
+
+    const args = [
+      "-p", prompt,
+      "--permission-mode", "bypassPermissions",
+      "--output-format", "text"
+    ];
+
+    log(`A invocar Claude Code: ${CLAUDE_BIN} -p "..." --permission-mode bypassPermissions`);
+
+    // Nota: shell: false é obrigatório no Windows para o prompt não ser truncado
+    // pelo cmd.exe (espaços/quotes/parênteses causavam corrupção do argumento).
+    const proc = spawn(CLAUDE_BIN, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      windowsHide: true
+    });
+
+    let stderr = "";
+    proc.stdout.on("data", (chunk) => process.stdout.write(chunk));
+    proc.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+      process.stderr.write(chunk);
+    });
+
+    const timer = setTimeout(() => {
+      log(`Timeout de ${CLAUDE_TIMEOUT_MS / 1000}s atingido — a matar o processo.`);
+      try { proc.kill("SIGKILL"); } catch { /* noop */ }
+      reject(new Error(`Timeout de ${CLAUDE_TIMEOUT_MS}ms`));
+    }, CLAUDE_TIMEOUT_MS);
+
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      reject(new Error(`Falha ao lançar '${CLAUDE_BIN}': ${err.message}. Está o Claude Code instalado e no PATH?`));
+    });
+
+    proc.on("exit", (code, signal) => {
+      clearTimeout(timer);
+      if (code === 0) return resolve();
+      reject(new Error(
+        `Claude Code saiu com código=${code} signal=${signal}. ` +
+        `stderr (últimas linhas): ${stderr.slice(-500)}`
+      ));
+    });
+  });
+}
+
+// ─── Marcar pedidos como erro em lote (para falhas globais) ─────────────
+
+async function markAllAsError(db, requests, reason) {
+  const batch = db.batch();
+  for (const r of requests) {
+    batch.update(db.collection("requests").doc(r.id), {
+      status: "error",
+      qaPassed: false,
+      qaNotes: reason,
+      processedAt: FieldValue.serverTimestamp()
+    });
+  }
+  await batch.commit();
+}
+
+// ─── Main ───────────────────────────────────────────────────────────────
+
+async function main() {
+  ensureWorkDir();
+
+  const startTime = new Date();
+  log(`queue: a começar. cwd=${resolvePath(".")}`);
+
+  const app = initializeApp({ credential: cert(resolveCredentials()) });
+  const db = getFirestore(app);
+
+  // 1. Query pending
+  const snap = await db.collection("requests")
+    .where("status", "==", "pending")
+    .limit(BATCH_LIMIT)
+    .get();
+
+  if (snap.empty) {
+    log("Nenhum pedido pending. A sair.");
+    await touchStatus(db, startTime, 0);
+    return;
+  }
+
+  const requests = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  log(`${requests.length} pedido(s) para processar: ${requests.map((r) => r.id).join(", ")}`);
+
+  // 2. Mark processing
+  {
+    const batch = db.batch();
+    for (const r of requests) {
+      batch.update(db.collection("requests").doc(r.id), { status: "processing" });
+    }
+    await batch.commit();
+  }
+
+  // 3. Preparar batch.json
+  cleanWorkFiles();
+  const batchInput = requests.map((r) => ({
+    id: r.id,
+    briefText: r.briefText || "",
+    segment: r.segment || null,
+    language: r.language || "PT"
+  }));
+  writeFileSync(BATCH_FILE, JSON.stringify(batchInput, null, 2), "utf8");
+  log(`Escrito ${BATCH_FILE} (${batchInput.length} entries).`);
+
+  // 4. Invocar Claude Code
+  try {
+    await invokeClaudeCode();
+  } catch (err) {
+    log(`Falha na invocação do Claude Code: ${err.message}`);
+    await markAllAsError(db, requests, `Falha do motor de geração: ${err.message}`);
+    await touchStatus(db, startTime, requests.length, "error", { lastRunError: err.message });
+    process.exit(1);
+  }
+
+  // 5. Ler output.json
+  if (!existsSync(OUTPUT_FILE)) {
+    const msg = `Claude Code terminou mas ${OUTPUT_FILE} não foi criado.`;
+    log(msg);
+    await markAllAsError(db, requests, msg);
+    await touchStatus(db, startTime, requests.length, "error", { lastRunError: msg });
+    process.exit(1);
+  }
+
+  let output;
+  try {
+    output = JSON.parse(readFileSync(OUTPUT_FILE, "utf8"));
+  } catch (err) {
+    const msg = `${OUTPUT_FILE} não é JSON válido: ${err.message}`;
+    log(msg);
+    await markAllAsError(db, requests, msg);
+    await touchStatus(db, startTime, requests.length, "error", { lastRunError: msg });
+    process.exit(1);
+  }
+
+  if (!output || !Array.isArray(output.results)) {
+    const msg = `${OUTPUT_FILE} não tem o formato esperado (falta "results" array).`;
+    log(msg);
+    await markAllAsError(db, requests, msg);
+    await touchStatus(db, startTime, requests.length, "error", { lastRunError: msg });
+    process.exit(1);
+  }
+
+  // 6. Escrever resultados de volta ao Firestore
+  const resultsById = new Map(output.results.map((r) => [r.id, r]));
+  const doneBatch = db.batch();
+  let doneCount = 0;
+  let errorCount = 0;
+  for (const req of requests) {
+    const result = resultsById.get(req.id);
+    if (!result) {
+      doneBatch.update(db.collection("requests").doc(req.id), {
+        status: "error",
+        qaPassed: false,
+        qaNotes: "O motor não devolveu resultado para este pedido.",
+        processedAt: FieldValue.serverTimestamp()
+      });
+      errorCount++;
+      continue;
+    }
+    const passed = result.qaPassed !== false;
+    doneBatch.update(db.collection("requests").doc(req.id), {
+      status: passed ? "done" : "error",
+      type: result.type || null,
+      segment: result.segment || req.segment || null,
+      language: result.language || req.language || "PT",
+      qaPassed: passed,
+      qaNotes: result.qaNotes || null,
+      results: Array.isArray(result.outputs) ? result.outputs : [],
+      processedAt: FieldValue.serverTimestamp()
+    });
+    if (passed) doneCount++; else errorCount++;
+  }
+  await doneBatch.commit();
+
+  await touchStatus(db, startTime, requests.length, errorCount > 0 ? "partial" : "ok", {
+    lastRunDone: doneCount,
+    lastRunErrors: errorCount
+  });
+
+  log(`queue: concluído. ${doneCount} pronto(s), ${errorCount} erro(s).`);
+}
+
+main().catch(async (err) => {
+  console.error(`queue: erro fatal: ${err.stack || err.message}`);
+  process.exit(1);
+});
