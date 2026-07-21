@@ -1,0 +1,44 @@
+rules_version = '2';
+
+// Páteo Content Studio — regras de segurança do Firestore
+//
+// Princípio: só utilizadores autenticados (login via Firebase Auth) podem
+// ler ou escrever nas colecções desta aplicação. Tudo o que não estiver
+// explicitamente permitido é negado.
+//
+// A sócia e o dono têm contas Firebase Auth (email/password).
+// O queue.js corre com Firebase Admin SDK, que ignora estas regras — usa a
+// service account (chave privada). Estas regras aplicam-se apenas a acessos
+// via SDK cliente (browser).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Bloqueio por defeito: qualquer caminho não coberto abaixo é negado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Pedidos de conteúdo (a sócia cria; o queue.js completa).
+    match /requests/{requestId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Base de dados de parceiros B2B (CRM-lite).
+    match /partners/{partnerId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Biblioteca de conteúdos aprovados/estrelados.
+    match /library/{itemId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Estado do sistema (ex.: última execução do queue.js).
+    // Escrita só via Admin SDK (queue.js); leitura só por utilizadores autenticados.
+    match /system/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}

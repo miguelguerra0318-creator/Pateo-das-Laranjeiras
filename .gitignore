@@ -1,0 +1,28 @@
+# Dependências
+node_modules/
+package-lock.json.bak
+
+# Segredos e credenciais — NUNCA commit
+*.serviceAccount.json
+firebase-service-account*.json
+.env
+.env.local
+.env.*.local
+.claude/.credentials.json
+
+# Config do Firebase cliente com valores reais (usar template)
+web/firebase-config.local.js
+
+# Directoria de trabalho do queue.js
+.work/
+*.tmp
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

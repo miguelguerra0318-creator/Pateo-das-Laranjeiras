@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Ferramenta interna do Páteo das Laranjeiras.">
+  <title>Páteo Content Studio</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header id="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <h1>Páteo Content Studio</h1>
+        <p class="tagline">Rascunhos preparados para o Páteo das Laranjeiras.</p>
+      </div>
+      <nav id="app-nav" class="hidden" aria-label="Menu principal">
+        <button class="nav-btn active" data-view="new" type="button">Novo pedido</button>
+        <button class="nav-btn" data-view="requests" type="button">Os meus pedidos</button>
+        <button class="nav-btn" data-view="library" type="button">Biblioteca</button>
+        <button class="nav-btn" data-view="partners" type="button">Parceiros</button>
+        <span id="last-run" class="last-run" aria-live="polite"></span>
+        <button id="logout-btn" class="ghost" type="button">Sair</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Entrar -->
+    <section id="view-login" class="view">
+      <div class="card login-card">
+        <h2>Entrar</h2>
+        <p class="muted">Ferramenta interna. Use o email e a palavra-passe que lhe foram atribuídos.</p>
+        <form id="login-form" autocomplete="on">
+          <label>
+            Email
+            <input type="email" id="login-email" name="email" required autocomplete="username">
+          </label>
+          <label>
+            Palavra-passe
+            <input type="password" id="login-password" name="current-password" required autocomplete="current-password">
+          </label>
+          <button type="submit" class="primary">Entrar</button>
+        </form>
+        <p id="login-error" class="error hidden" role="alert"></p>
+      </div>
+    </section>
+
+    <!-- Novo pedido -->
+    <section id="view-new" class="view hidden">
+      <div class="card">
+        <h2>Novo pedido</h2>
+        <p class="muted">Descreva em português o que precisa. Ex.: <em>"3 posts de Instagram para um grupo de casamento que chega dia 12 de setembro"</em>.</p>
+        <form id="new-request-form">
+          <label>
+            O que precisa?
+            <textarea id="brief-text" rows="6" required placeholder="Descreva aqui..."></textarea>
+          </label>
+          <div class="row">
+            <label class="col">
+              Idioma
+              <select id="brief-language">
+                <option value="PT" selected>Português (por defeito)</option>
+                <option value="PT+EN">Português + Inglês</option>
+              </select>
+            </label>
+            <label class="col">
+              Segmento (opcional — se em dúvida, deixe em branco)
+              <select id="brief-segment">
+                <option value="">— o sistema decide —</option>
+                <option value="casamento">Grupos de casamento</option>
+                <option value="convidados">Convidados de casamento</option>
+                <option value="peregrinos">Peregrinos</option>
+                <option value="montejunto">Serra de Montejunto / natureza</option>
+                <option value="geral">Geral</option>
+              </select>
+            </label>
+          </div>
+          <button type="submit" class="primary">Submeter pedido</button>
+        </form>
+        <p id="new-request-status" class="status-message hidden" role="status"></p>
+      </div>
+      <aside class="card info-card">
+        <h3>Como funciona</h3>
+        <p>O sistema acorda automaticamente <strong>de ~15 em 15 minutos</strong>. Assim que houver rascunhos prontos aparecem em <em>Os meus pedidos</em> com botões para copiar.</p>
+        <p>Se um rascunho precisar de imagem, receberá também um <strong>prompt para colar no Gemini</strong> (Nano Banana, grátis) e gerar a imagem à mão. Nada é publicado por nós — os rascunhos são só seus, para copiar e usar onde quiser.</p>
+      </aside>
+    </section>
+
+    <!-- Os meus pedidos -->
+    <section id="view-requests" class="view hidden">
+      <div class="card">
+        <h2>Os meus pedidos</h2>
+        <p class="muted">Pedidos ordenados do mais recente para o mais antigo. Clique num pedido para ver os rascunhos.</p>
+        <ul id="requests-list" class="requests-list">
+          <li class="empty">A carregar...</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Biblioteca -->
+    <section id="view-library" class="view hidden">
+      <div class="card">
+        <h2>Biblioteca</h2>
+        <p class="muted">Aqui vão viver os conteúdos aprovados que quiser guardar para reutilizar.</p>
+        <p><em>Disponível numa fase seguinte.</em></p>
+      </div>
+    </section>
+
+    <!-- Parceiros -->
+    <section id="view-partners" class="view hidden">
+      <div class="card">
+        <h2>Parceiros</h2>
+        <p class="muted">Base de dados de quintas de casamentos, wedding planners, fotógrafos, floristas, catering e outros contactos da região — para outreach comercial.</p>
+        <p><em>Disponível numa fase seguinte, com filtros, importação/exportação CSV e histórico de contactos.</em></p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <small>Uso interno · Páteo das Laranjeiras · AL 896902</small>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "pateo-content-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ferramenta interna que prepara conteúdo de marketing para o Páteo das Laranjeiras. Uso interno; nada é publicado automaticamente.",
+  "type": "module",
+  "scripts": {
+    "queue": "node scripts/queue.js",
+    "smoke:firestore": "node scripts/smoke-firestore.js",
+    "web": "firebase serve --only hosting --port 5000"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}
