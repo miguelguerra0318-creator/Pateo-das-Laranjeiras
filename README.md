@@ -40,31 +40,21 @@ Ferramenta interna para preparar conteúdo de marketing do **Páteo das Laranjei
 
 ---
 
-## Geração de imagens (Nano Banana) — opcional, grátis
+## Geração de imagens (Nano Banana)
 
-O sistema pode gerar as imagens automaticamente (modelo **`gemini-2.5-flash-image`**, o "Nano Banana", do Google AI Studio) e mostrá-las já prontas na app. É **opcional** e **degrada com segurança**: sem chave, ou se a chamada falhar, volta ao fluxo manual (mostra o prompt para colar no Gemini). **Nunca gera uma fatura.**
+**Estado atual: manual e grátis (€0).** A app mostra, em cada rascunho que precise de imagem, o **prompt do Nano Banana** com um botão para copiar; a sócia cola-o na app grátis do Gemini (https://aistudio.google.com), gera a imagem à mão e usa-a. É o fluxo escolhido — custo zero, sem cartão.
 
-**Porque é grátis e seguro:**
-- Tier gratuito: ~**500 imagens/dia**, **sem cartão de crédito**.
-- Estás no **EEE (Portugal)** → pelos termos do Gemini API, aplicam-se os termos dos serviços pagos mesmo no tier grátis: o Google **não treina** com os teus dados. *(Confirmar nos termos atuais antes de produção.)*
-- Uso real da sócia (uma mão-cheia de imagens/dia) fica muito abaixo do limite.
+> **Nota importante (jul/2026):** o tier **gratuito da API** do Gemini para **geração de imagens deixou de existir** — a API devolve `limit: 0` para `generate_content_free_tier_requests`. Ou seja, gerar imagens **automaticamente** via API passou a exigir **faturação ativada** (cartão). O plano gratuito só serve para gerar imagens **à mão** na app/site do Gemini. Artigos que anunciam "500 imagens/dia grátis via API" já não correspondem à realidade desta conta.
 
-**Como ligar (passo-a-passo):**
-1. Vai a **https://aistudio.google.com/apikey** com a conta Google do projeto e clica **"Create API key"** (é grátis, não pede cartão). Copia a chave.
-2. No GitHub, no repositório: **Settings → Secrets and variables → Actions → New repository secret**.
-   - **Name:** `GEMINI_API_KEY`
-   - **Secret:** cola a chave. Guardar.
-3. Pronto. No próximo run do agente, os rascunhos que precisem de imagem já vêm com a imagem gerada.
+### Geração automática (opcional, pago — atualmente desligada)
 
-Para correr **localmente** (Plano B), define a chave antes do `npm run queue`:
-```powershell
-$env:GEMINI_API_KEY = "a-tua-chave"
-npm run queue
-```
+O código já suporta gerar as imagens automaticamente e mostrá-las prontas na app (com botão de descarregar). Está **dormente** e só liga se existir o secret `GEMINI_API_KEY` **e** a faturação estiver ativada na chave. Se um dia quiseres ligar:
 
-**Guarda-quota:** por defeito gera no máximo **20 imagens por run** (`IMAGE_LIMIT`). Podes ajustar via env/secret.
+1. Ativa **faturação** no projeto Google Cloud da chave (Google AI Studio → Billing) e define um **alerta de orçamento**.
+2. Cria o secret `GEMINI_API_KEY` no GitHub (**Settings → Secrets and variables → Actions**).
+3. (Opcional) `IMAGE_LIMIT` limita imagens por run (default 20); `GEMINI_IMAGE_MODEL` escolhe o modelo (`gemini-2.5-flash-image` ~€0,03/img; `gemini-3-pro-image` / Nano Banana Pro ~€0,12/img, melhor qualidade).
 
-**Passar para o Nano Banana Pro (pago, melhor qualidade):** cria o secret `GEMINI_IMAGE_MODEL = gemini-3-pro-image` e **ativa a faturação** na chave. Custa ~€0,12/imagem — deixa de ser custo zero. Só faz sentido se quiseres qualidade topo (texto nítido dentro da imagem).
+Custo típico no uso real (poucas imagens/dia): alguns euros/mês. **Degradação graciosa:** se a chave faltar ou a chamada falhar (ex.: sem faturação → 429), o sistema volta sozinho ao prompt manual — nunca bloqueia nem falha o pedido.
 
 ---
 
