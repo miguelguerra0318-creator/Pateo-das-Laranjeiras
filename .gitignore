@@ -17,6 +17,9 @@ web/firebase-config.local.js
 .work/
 *.tmp
 
+# Cache local do Firebase CLI
+.firebase/
+
 # IDE / SO
 .vscode/
 .idea/

@@ -34,9 +34,37 @@ Ferramenta interna para preparar conteúdo de marketing do **Páteo das Laranjei
 2. O pedido fica gravado no **Firestore** como `pending`.
 3. De ~15 em 15 minutos, o **GitHub Actions** (ou o PC local, ver Plano B) acorda, corre o `queue.js`, que invoca o **Claude Code** headless.
 4. O Claude Code lê o `/brand-brain/`, passa pelo **Dispatcher → especialista (Copywriter / OTA Editor) → Art Director → QA**, e escreve os resultados de volta no Firestore.
-5. A sócia recebe os rascunhos na app, com botões para **copiar** o texto e o **prompt de imagem** (Nano Banana), e cola manualmente onde precisa.
+5. A sócia recebe os rascunhos na app, com botões para **copiar** o texto e, quando há imagem, a **imagem já gerada** (Nano Banana) pronta a **descarregar**. Se a geração automática estiver desligada ou falhar, mostra antes o **prompt de imagem** para colar no Gemini à mão.
 
 **Nada é publicado automaticamente. Nenhuma mensagem é enviada a clientes.**
+
+---
+
+## Geração de imagens (Nano Banana) — opcional, grátis
+
+O sistema pode gerar as imagens automaticamente (modelo **`gemini-2.5-flash-image`**, o "Nano Banana", do Google AI Studio) e mostrá-las já prontas na app. É **opcional** e **degrada com segurança**: sem chave, ou se a chamada falhar, volta ao fluxo manual (mostra o prompt para colar no Gemini). **Nunca gera uma fatura.**
+
+**Porque é grátis e seguro:**
+- Tier gratuito: ~**500 imagens/dia**, **sem cartão de crédito**.
+- Estás no **EEE (Portugal)** → pelos termos do Gemini API, aplicam-se os termos dos serviços pagos mesmo no tier grátis: o Google **não treina** com os teus dados. *(Confirmar nos termos atuais antes de produção.)*
+- Uso real da sócia (uma mão-cheia de imagens/dia) fica muito abaixo do limite.
+
+**Como ligar (passo-a-passo):**
+1. Vai a **https://aistudio.google.com/apikey** com a conta Google do projeto e clica **"Create API key"** (é grátis, não pede cartão). Copia a chave.
+2. No GitHub, no repositório: **Settings → Secrets and variables → Actions → New repository secret**.
+   - **Name:** `GEMINI_API_KEY`
+   - **Secret:** cola a chave. Guardar.
+3. Pronto. No próximo run do agente, os rascunhos que precisem de imagem já vêm com a imagem gerada.
+
+Para correr **localmente** (Plano B), define a chave antes do `npm run queue`:
+```powershell
+$env:GEMINI_API_KEY = "a-tua-chave"
+npm run queue
+```
+
+**Guarda-quota:** por defeito gera no máximo **20 imagens por run** (`IMAGE_LIMIT`). Podes ajustar via env/secret.
+
+**Passar para o Nano Banana Pro (pago, melhor qualidade):** cria o secret `GEMINI_IMAGE_MODEL = gemini-3-pro-image` e **ativa a faturação** na chave. Custa ~€0,12/imagem — deixa de ser custo zero. Só faz sentido se quiseres qualidade topo (texto nítido dentro da imagem).
 
 ---
 

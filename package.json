@@ -10,6 +10,7 @@
     "web": "firebase serve --only hosting --port 5000"
   },
   "dependencies": {
-    "firebase-admin": "^13.0.0"
+    "firebase-admin": "^13.0.0",
+    "jimp": "^1.6.1"
   }
 }

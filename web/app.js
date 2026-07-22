@@ -387,7 +387,11 @@ function renderResultCard(result, ctx = null, opts = {}) {
   (opts.extraActions || []).forEach((b) => actions.appendChild(b));
   card.appendChild(actions);
 
-  if (result.imagePrompt) {
+  if (result.imageRef) {
+    // Imagem já gerada pelo sistema (Nano Banana) — mostra e deixa descarregar.
+    card.appendChild(buildGeneratedImage(result));
+  } else if (result.imagePrompt) {
+    // Fallback manual: sem imagem gerada, mostra o prompt para colar no Gemini.
     const promptBox = document.createElement("div");
     promptBox.className = "image-prompt";
     const lbl = document.createElement("label");
@@ -417,6 +421,66 @@ function renderResultCard(result, ctx = null, opts = {}) {
   }
 
   return card;
+}
+
+// Mostra a imagem gerada (carregada da colecção `images`) + botão descarregar.
+function buildGeneratedImage(result) {
+  const box = document.createElement("div");
+  box.className = "gen-image";
+
+  const loading = document.createElement("p");
+  loading.className = "gen-image-loading";
+  loading.textContent = "A carregar imagem…";
+  box.appendChild(loading);
+
+  getDoc(doc(db, "images", result.imageRef))
+    .then((snap) => {
+      if (!snap.exists()) {
+        loading.textContent = "Imagem indisponível.";
+        return;
+      }
+      const d = snap.data();
+      const src = `data:${d.mime || "image/jpeg"};base64,${d.data}`;
+      box.innerHTML = "";
+
+      const img = document.createElement("img");
+      img.className = "gen-image-img";
+      img.src = src;
+      img.alt = result.title || "Imagem gerada";
+      img.loading = "lazy";
+      box.appendChild(img);
+
+      const actions = document.createElement("div");
+      actions.className = "gen-image-actions";
+      const dl = document.createElement("a");
+      dl.className = "copy-btn";
+      // NFD separa os acentos; o filtro [^a-z0-9] remove as marcas combinantes.
+      const slug = (result.title || "imagem-pateo")
+        .toLowerCase().normalize("NFD")
+        .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "imagem-pateo";
+      dl.href = src;
+      dl.download = slug + ".jpg";
+      dl.textContent = "Descarregar imagem";
+      actions.appendChild(dl);
+      box.appendChild(actions);
+
+      if (result.imagePrompt) {
+        const det = document.createElement("details");
+        det.className = "gen-prompt-details";
+        const sum = document.createElement("summary");
+        sum.textContent = "Ver prompt usado";
+        const pre = document.createElement("pre");
+        pre.textContent = result.imagePrompt;
+        det.append(sum, pre);
+        box.appendChild(det);
+      }
+    })
+    .catch((err) => {
+      console.error("Falha a carregar imagem:", err);
+      loading.textContent = "Não foi possível carregar a imagem.";
+    });
+
+  return box;
 }
 
 function makeCopyButton(label, text) {
@@ -510,6 +574,7 @@ function makeSaveToLibraryButton(result, ctx = {}) {
         title: result.title || "Rascunho",
         body: result.body || "",
         imagePrompt: result.imagePrompt || null,
+        imageRef: result.imageRef || null,
         photoSuggestion: result.photoSuggestion || null,
         notes: result.notes || null,
         segment: ctx.segment || null,

@@ -73,6 +73,13 @@ jobs:
           # Token OAuth da subscrição Claude (gerado localmente com `claude setup-token`).
           # O Claude Code CLI usa esta env var automaticamente em modo headless.
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # API key grátis do Google AI Studio para gerar imagens (Nano Banana).
+          # Opcional: se não estiver definido, o queue.js não gera imagens e a app
+          # mostra o prompt para colar no Gemini à mão. Nunca gera fatura.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # Para saltar para o Nano Banana Pro (pago): definir o secret
+          # GEMINI_IMAGE_MODEL = gemini-3-pro-image e activar faturação na key.
+          GEMINI_IMAGE_MODEL: ${{ secrets.GEMINI_IMAGE_MODEL }}
         run: |
           if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
             echo "::error::Secret CLAUDE_CODE_OAUTH_TOKEN não está definido no repositório."

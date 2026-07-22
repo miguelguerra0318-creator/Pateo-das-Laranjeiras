@@ -512,6 +512,43 @@ button.primary.small { box-shadow: 0 3px 10px rgba(34, 168, 132, 0.3); }
   font-size: 0.9rem;
 }
 
+/* Imagem gerada (Nano Banana) */
+.gen-image { margin-top: 0.9rem; }
+.gen-image-loading {
+  padding: 1.2rem;
+  text-align: center;
+  color: var(--ink-soft);
+  font-style: italic;
+  background: var(--surface-2);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius-sm);
+  margin: 0;
+}
+.gen-image-img {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+.gen-image-actions { margin-top: 0.6rem; }
+.gen-image-actions .copy-btn { text-decoration: none; display: inline-block; }
+.gen-prompt-details { margin-top: 0.5rem; font-size: 0.85rem; color: var(--ink-soft); }
+.gen-prompt-details summary { cursor: pointer; color: var(--teal-dk); }
+.gen-prompt-details pre {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  margin: 0.4rem 0 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
 .qa-notes {
   margin: 0 0 0.9rem;
   padding: 0.65rem 0.85rem;

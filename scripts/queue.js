@@ -21,6 +21,7 @@ import { spawn } from "node:child_process";
 import { resolve as resolvePath } from "node:path";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { Jimp, JimpMime } from "jimp";
 
 // ─── Config ─────────────────────────────────────────────────────────────
 
@@ -31,6 +32,13 @@ const CLAUDE_TIMEOUT_MS = parseInt(process.env.CLAUDE_TIMEOUT_MS || String(20 * 
 const WORK_DIR = ".work";
 const BATCH_FILE = `${WORK_DIR}/batch.json`;
 const OUTPUT_FILE = `${WORK_DIR}/output.json`;
+
+// Geração de imagens (Nano Banana / Gemini). Opcional: se GEMINI_API_KEY não
+// estiver definido, o sistema não gera imagens e mantém o fluxo manual (a app
+// mostra o imagePrompt para colar no Gemini à mão). Nunca gera uma fatura.
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
+const IMAGE_LIMIT = parseInt(process.env.IMAGE_LIMIT || "20", 10); // guarda-quota por run
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
@@ -123,6 +131,83 @@ function invokeClaudeCode() {
       ));
     });
   });
+}
+
+// ─── Geração de imagem (Nano Banana / Gemini) ───────────────────────────
+
+// Recebe um imagePrompt (texto) e devolve { data (base64), mime } ou null.
+// Comprime para JPEG ~1024px para caber no limite de 1 MiB/doc do Firestore.
+// Qualquer falha lança erro — o chamador apanha e mantém o fluxo manual.
+async function generateImage(prompt) {
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent` +
+    `?key=${GEMINI_API_KEY}`;
+
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { responseModalities: ["TEXT", "IMAGE"] }
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Gemini HTTP ${res.status}: ${t.slice(0, 300)}`);
+  }
+
+  const json = await res.json();
+  const parts = json?.candidates?.[0]?.content?.parts || [];
+  const imgPart = parts.find((p) => p.inlineData || p.inline_data);
+  const inline = imgPart?.inlineData || imgPart?.inline_data;
+  if (!inline?.data) {
+    throw new Error("Resposta do Gemini sem imagem (inlineData em falta).");
+  }
+
+  const raw = Buffer.from(inline.data, "base64");
+  const img = await Jimp.read(raw);
+  img.scaleToFit({ w: 1024, h: 1024 });
+  const jpeg = await img.getBuffer(JimpMime.jpeg, { quality: 80 });
+  return { data: jpeg.toString("base64"), mime: "image/jpeg" };
+}
+
+// Percorre os outputs, gera imagem para os que têm imagePrompt, grava cada
+// imagem num doc da colecção `images` e anexa `imageRef` ao output.
+async function generateImagesFor(db, results) {
+  if (!GEMINI_API_KEY) {
+    log("GEMINI_API_KEY ausente — imagens não geradas (mantém-se o fluxo manual).");
+    return;
+  }
+  let generated = 0;
+  for (const result of results) {
+    const outs = Array.isArray(result.outputs) ? result.outputs : [];
+    for (const out of outs) {
+      if (!out || !out.imagePrompt) continue;
+      if (generated >= IMAGE_LIMIT) {
+        log(`IMAGE_LIMIT (${IMAGE_LIMIT}) atingido — restantes ficam só com prompt manual.`);
+        return;
+      }
+      try {
+        const img = await generateImage(out.imagePrompt);
+        const ref = db.collection("images").doc();
+        await ref.set({
+          data: img.data,
+          mime: img.mime,
+          prompt: out.imagePrompt,
+          createdAt: FieldValue.serverTimestamp()
+        });
+        out.imageRef = ref.id;
+        generated++;
+        log(`Imagem gerada → images/${ref.id} (${Math.round(img.data.length / 1024)} KB base64)`);
+      } catch (err) {
+        log(`Falha a gerar imagem (fica prompt manual): ${err.message}`);
+      }
+    }
+  }
+  log(`Imagens geradas neste run: ${generated}`);
 }
 
 // ─── Marcar pedidos como erro em lote (para falhas globais) ─────────────
@@ -223,6 +308,10 @@ async function main() {
     await touchStatus(db, startTime, requests.length, "error", { lastRunError: msg });
     process.exit(1);
   }
+
+  // 5b. Gerar imagens (Nano Banana) para os outputs com imagePrompt.
+  //     Anexa `imageRef` a cada output gerado; falhas mantêm o prompt manual.
+  await generateImagesFor(db, output.results);
 
   // 6. Escrever resultados de volta ao Firestore
   const resultsById = new Map(output.results.map((r) => [r.id, r]));
