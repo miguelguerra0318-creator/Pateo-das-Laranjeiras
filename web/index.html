@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Ferramenta interna do Páteo das Laranjeiras.">
   <title>Páteo Content Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Mulish:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -91,10 +94,25 @@
     <section id="view-requests" class="view hidden">
       <div class="card">
         <h2>Os meus pedidos</h2>
-        <p class="muted">Pedidos ordenados do mais recente para o mais antigo. Clique num pedido para ver os rascunhos.</p>
-        <ul id="requests-list" class="requests-list">
-          <li class="empty">A carregar...</li>
-        </ul>
+        <p class="muted">Clique num pedido para ver os rascunhos. Guarde os melhores na biblioteca com a estrela ⭐; arquive os restantes para manter esta lista limpa.</p>
+
+        <div class="subsection">
+          <h3 class="subhead"><span class="dot dot-pending"></span> Pendentes</h3>
+          <ul id="requests-pending" class="requests-list">
+            <li class="empty">A carregar...</li>
+          </ul>
+        </div>
+
+        <div class="subsection">
+          <h3 class="subhead"><span class="dot dot-done"></span> Prontos</h3>
+          <ul id="requests-done" class="requests-list"></ul>
+        </div>
+
+        <details class="subsection archived-block">
+          <summary class="subhead"><span class="dot dot-archived"></span> Arquivados</summary>
+          <input type="search" id="archived-search" class="inline-search" placeholder="Pesquisar nos arquivados...">
+          <ul id="requests-archived" class="requests-list"></ul>
+        </details>
       </div>
     </section>
 
@@ -102,17 +120,175 @@
     <section id="view-library" class="view hidden">
       <div class="card">
         <h2>Biblioteca</h2>
-        <p class="muted">Aqui vão viver os conteúdos aprovados que quiser guardar para reutilizar.</p>
-        <p><em>Disponível numa fase seguinte.</em></p>
+        <p class="muted">Conteúdos que guardou com a estrela ⭐ em <em>Os meus pedidos</em>. Clique num item para o abrir; copie e cole onde precisar.</p>
+        <div class="library-toolbar">
+          <input type="search" id="library-search" placeholder="Pesquisar por título ou texto...">
+          <select id="library-platform" aria-label="Filtrar por plataforma">
+            <option value="">Todas as plataformas</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Airbnb">Airbnb</option>
+            <option value="Booking">Booking</option>
+            <option value="Blog/Site">Blog / Site</option>
+            <option value="Outro">Outro</option>
+          </select>
+          <select id="library-segment" aria-label="Filtrar por segmento">
+            <option value="">Todos os segmentos</option>
+            <option value="casamento">Casamento</option>
+            <option value="convidados">Convidados</option>
+            <option value="peregrinos">Peregrinos</option>
+            <option value="montejunto">Montejunto</option>
+            <option value="geral">Geral</option>
+          </select>
+        </div>
+        <div id="library-list" class="library-list">
+          <p class="empty">A carregar...</p>
+        </div>
       </div>
     </section>
 
     <!-- Parceiros -->
     <section id="view-partners" class="view hidden">
       <div class="card">
-        <h2>Parceiros</h2>
-        <p class="muted">Base de dados de quintas de casamentos, wedding planners, fotógrafos, floristas, catering e outros contactos da região — para outreach comercial.</p>
-        <p><em>Disponível numa fase seguinte, com filtros, importação/exportação CSV e histórico de contactos.</em></p>
+        <div class="section-head">
+          <div>
+            <h2>Parceiros</h2>
+            <p class="muted">Quintas de casamentos, wedding planners, fotógrafos, floristas, catering e outros contactos da região — para outreach comercial.</p>
+          </div>
+          <div class="section-actions">
+            <button id="partner-new-btn" class="primary" type="button">+ Novo parceiro</button>
+          </div>
+        </div>
+
+        <div class="partners-toolbar">
+          <input type="search" id="partner-search" placeholder="Pesquisar nome ou notas...">
+          <select id="filter-type" aria-label="Filtrar por tipo">
+            <option value="">Todos os tipos</option>
+            <option value="quinta de casamentos">Quinta de casamentos</option>
+            <option value="wedding planner">Wedding planner</option>
+            <option value="fotógrafo">Fotógrafo</option>
+            <option value="florista">Florista</option>
+            <option value="catering">Catering</option>
+            <option value="agência">Agência</option>
+            <option value="outro">Outro</option>
+          </select>
+          <select id="filter-status" aria-label="Filtrar por estado">
+            <option value="">Todos os estados</option>
+            <option value="a contactar">A contactar</option>
+            <option value="contactado">Contactado</option>
+            <option value="em conversa">Em conversa</option>
+            <option value="parceiro">Parceiro</option>
+            <option value="sem interesse">Sem interesse</option>
+          </select>
+          <select id="filter-priority" aria-label="Filtrar por prioridade">
+            <option value="">Todas as prioridades</option>
+            <option value="alta">Alta</option>
+            <option value="média">Média</option>
+            <option value="baixa">Baixa</option>
+          </select>
+          <input type="search" id="filter-region" placeholder="Região...">
+        </div>
+
+        <div class="partners-io">
+          <button id="partner-export-btn" class="ghost" type="button">Exportar CSV</button>
+          <label class="import-label ghost" role="button">
+            Importar CSV
+            <input type="file" id="partner-import-input" accept=".csv,text/csv" hidden>
+          </label>
+          <span id="partner-count" class="muted"></span>
+        </div>
+
+        <div class="table-scroll">
+          <table id="partners-table" class="partners-table">
+            <thead>
+              <tr>
+                <th data-sort="name">Nome</th>
+                <th data-sort="type">Tipo</th>
+                <th data-sort="region">Região</th>
+                <th data-sort="contactStatus">Estado</th>
+                <th data-sort="priority">Prioridade</th>
+                <th data-sort="nextAction">Próxima acção</th>
+                <th data-sort="lastContact">Último contacto</th>
+                <th aria-label="Acções"></th>
+              </tr>
+            </thead>
+            <tbody id="partners-tbody">
+              <tr><td colspan="8" class="empty">A carregar...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Editor de parceiro (aparece ao criar/editar) -->
+      <div id="partner-editor" class="card partner-editor hidden">
+        <h3 id="partner-editor-title">Novo parceiro</h3>
+        <div class="row">
+          <label class="col">Nome
+            <input type="text" id="pe-name" required>
+          </label>
+          <label class="col">Tipo
+            <select id="pe-type">
+              <option value="quinta de casamentos">Quinta de casamentos</option>
+              <option value="wedding planner">Wedding planner</option>
+              <option value="fotógrafo">Fotógrafo</option>
+              <option value="florista">Florista</option>
+              <option value="catering">Catering</option>
+              <option value="agência">Agência</option>
+              <option value="outro" selected>Outro</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label class="col">Região
+            <input type="text" id="pe-region" placeholder="Ex.: Alenquer, Torres Vedras">
+          </label>
+          <label class="col">Nome do contacto
+            <input type="text" id="pe-contactName">
+          </label>
+        </div>
+        <div class="row">
+          <label class="col">Email
+            <input type="email" id="pe-email">
+          </label>
+          <label class="col">Telefone
+            <input type="text" id="pe-phone">
+          </label>
+        </div>
+        <div class="row">
+          <label class="col">Estado
+            <select id="pe-contactStatus">
+              <option value="a contactar" selected>A contactar</option>
+              <option value="contactado">Contactado</option>
+              <option value="em conversa">Em conversa</option>
+              <option value="parceiro">Parceiro</option>
+              <option value="sem interesse">Sem interesse</option>
+            </select>
+          </label>
+          <label class="col">Prioridade
+            <select id="pe-priority">
+              <option value="alta">Alta</option>
+              <option value="média" selected>Média</option>
+              <option value="baixa">Baixa</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label class="col">Último contacto
+            <input type="date" id="pe-lastContact">
+          </label>
+          <label class="col">Próxima acção
+            <input type="text" id="pe-nextAction" placeholder="Ex.: enviar kit, follow-up dia 20">
+          </label>
+        </div>
+        <label>Notas (histórico — acrescente por baixo, não apague)
+          <textarea id="pe-notes" rows="5"></textarea>
+        </label>
+        <div class="editor-actions">
+          <button id="pe-save" class="primary" type="button">Guardar</button>
+          <button id="pe-cancel" class="ghost" type="button">Cancelar</button>
+          <button id="pe-delete" class="danger-btn hidden" type="button">Apagar</button>
+        </div>
+        <p id="pe-status" class="status-message hidden" role="status"></p>
       </div>
     </section>
   </main>

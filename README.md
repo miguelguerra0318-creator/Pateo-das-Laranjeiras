@@ -53,13 +53,32 @@ Ferramenta interna para preparar conteúdo de marketing do **Páteo das Laranjei
 
 ## Estado da construção
 
-Este README será actualizado no fim, com instruções completas de setup para a sócia (login, como fazer pedidos, como copiar conteúdo) e para o dono (secrets do GitHub, service account do Firebase, OAuth token do Claude Code).
-
 Ordem de construção (ver `CLAUDE_CODE_BUILD_PROMPT.md`):
 
 - [x] **Fase 1** — Scaffold do repositório e brand-brain completo
 - [x] **Fase 2** — Firestore + regras de segurança (projeto `pateo-das-laranjeiras`, região Madrid, regras deployed, smoke test ok)
 - [x] **Fase 3** — App web (login, novo pedido, lista de pedidos, biblioteca e parceiros como placeholders)
-- [ ] Fase 4 — Agentes + `queue.js` local
-- [ ] Fase 5 — GitHub Action (ou fallback local)
-- [ ] Fase 6 — Polish, Biblioteca, Parceiros (CRM B2B), README final
+- [x] **Fase 4** — Agentes (Dispatcher/Copywriter/OTA Editor/Art Director/Editor-QA) + `queue.js` local, testado end-to-end
+- [x] **Fase 5** — GitHub Action com OAuth token da subscrição Claude; cron `*/15 07-20 UTC`; testado em CI a 2026-07-21
+- [x] **Fase 6** — Polish: Biblioteca funcional, Parceiros (CRM B2B) com import/export CSV, botões de copiar, indicador de saúde, README final
+
+---
+
+## Como a sócia usa a app
+
+1. **Entrar** — email e palavra-passe atribuídos (login Firebase).
+2. **Novo pedido** — escrever em português o que precisa (ex.: _"3 posts de Instagram para um grupo de casamento que chega dia 12"_). Opcionalmente escolher idioma (PT por defeito, ou PT+EN) e segmento. Submeter.
+3. **Os meus pedidos** — os rascunhos aparecem dentro de ~15 min com estado (Pendente / A processar / Pronto / Erro). Em cada rascunho pronto:
+   - **Copiar** — copia o texto para colar no Instagram/Facebook/Wix/OTA.
+   - **Copiar prompt de imagem** — copia o prompt para colar no Gemini (app grátis, Nano Banana) e gerar a imagem à mão.
+   - **⭐ Guardar na biblioteca** — arquiva o rascunho para reutilizar.
+4. **Biblioteca** — tudo o que guardou com a estrela, pesquisável por título ou texto; copiar ou remover.
+5. **Parceiros** — base de dados comercial B2B para outreach de referência:
+   - Tabela ordenável (clicar no cabeçalho) e filtrável por tipo, estado, prioridade e região; pesquisa por nome/notas.
+   - **+ Novo parceiro** / **Editar** — formulário completo; o campo _Notas_ serve de histórico (acrescentar por baixo).
+   - Estados com cores: a contactar → contactado → em conversa → parceiro / sem interesse.
+   - **Importar CSV** / **Exportar CSV** — carregar listas em massa ou levar os dados para outro lado. O CSV usa as colunas: `name, type, region, contactName, email, phone, website, instagram, contactStatus, priority, lastContact, nextAction, notes` (data no formato `AAAA-MM-DD`).
+   - **Criar pedido de email de outreach** (no editor de um parceiro) — gera um pedido pré-preenchido para rascunhar um email de apresentação. **O email é só rascunhado, nunca enviado pelo sistema.**
+6. **última execução do agente: há X min** — indicador no topo que mostra que o pipeline está vivo.
+
+Nada é publicado nem enviado automaticamente. Todos os rascunhos são para a sócia rever e usar à mão.
