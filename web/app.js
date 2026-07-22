@@ -36,6 +36,39 @@ setPersistence(auth, indexedDBLocalPersistence).catch((err) => {
   console.warn("Persistência IndexedDB indisponível — a sessão só dura nesta aba.", err);
 });
 
+// ─── Disparo do agente (Opção B: token no site) ─────────────────────────
+// Importa o config de forma tolerante: se trigger-config.js não existir,
+// a app funciona na mesma (só não dispara automaticamente).
+let GITHUB_TRIGGER = null;
+try {
+  ({ GITHUB_TRIGGER } = await import("./trigger-config.js"));
+} catch {
+  console.info("trigger-config.js ausente — disparo do agente desligado.");
+}
+
+// Manda o GitHub Actions correr o queue.js (workflow_dispatch).
+// Devolve true se disparou, false se não está configurado; lança em erro real.
+async function triggerAgent() {
+  if (!GITHUB_TRIGGER?.token || !GITHUB_TRIGGER?.repo) return false;
+  const res = await fetch(
+    `https://api.github.com/repos/${GITHUB_TRIGGER.repo}/actions/workflows/studio.yml/dispatches`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + GITHUB_TRIGGER.token,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      body: JSON.stringify({ ref: "main" }),
+    }
+  );
+  if (res.status !== 204 && !res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`GitHub ${res.status}: ${t.slice(0, 200)}`);
+  }
+  return true;
+}
+
 // ─── DOM helpers ─────────────────────────────────────────────────────────
 
 const $ = (sel) => document.querySelector(sel);
@@ -156,10 +189,19 @@ $("#new-request-form").addEventListener("submit", async (e) => {
     });
     $("#brief-text").value = "";
     $("#brief-segment").value = "";
-    statusEl.textContent =
-      "Pedido recebido. Os rascunhos aparecem em \"Os meus pedidos\" dentro de alguns minutos (o sistema acorda de ~15 em 15 minutos).";
     statusEl.classList.remove("hidden");
     statusEl.classList.add("success");
+    statusEl.textContent = "Pedido recebido. A pôr o assistente a trabalhar…";
+    try {
+      const fired = await triggerAgent();
+      statusEl.textContent = fired
+        ? "Pedido recebido — a processar agora. Os rascunhos aparecem em \"Os meus pedidos\" dentro de alguns minutos."
+        : "Pedido recebido. Aparece em \"Os meus pedidos\" assim que o assistente correr.";
+    } catch (err) {
+      console.error("Falha ao disparar o agente:", err);
+      statusEl.textContent =
+        "Pedido guardado. Não consegui arrancar o assistente automaticamente — use o botão \"Processar agora\" em Os meus pedidos.";
+    }
   } catch (err) {
     console.error(err);
     statusEl.textContent =
@@ -199,6 +241,25 @@ function subscribeRequests(user) {
 let allRequestDocs = [];
 
 $("#archived-search").addEventListener("input", renderArchived);
+
+// Botão "Processar agora" — re-dispara o agente para pedidos pendentes.
+$("#process-now-btn")?.addEventListener("click", async () => {
+  const btn = $("#process-now-btn");
+  const st = $("#process-now-status");
+  btn.disabled = true;
+  st.textContent = "A arrancar o assistente…";
+  try {
+    const fired = await triggerAgent();
+    st.textContent = fired
+      ? "A processar — os pedidos pendentes ficam prontos em poucos minutos."
+      : "Disparo não configurado. Fale com o administrador.";
+  } catch (err) {
+    console.error("Falha ao disparar o agente:", err);
+    st.textContent = "Não foi possível arrancar. Tente novamente daqui a pouco.";
+  } finally {
+    setTimeout(() => { btn.disabled = false; }, 8000);
+  }
+});
 
 function renderRequests(docs) {
   allRequestDocs = docs;
@@ -307,7 +368,7 @@ function renderRequestBody(id, data) {
   if (data.status === "pending") {
     const p = document.createElement("p");
     p.className = "muted";
-    p.textContent = "Ainda por processar. O sistema acorda de ~15 em 15 minutos.";
+    p.textContent = "Ainda por processar. Use \"Processar agora\" no topo se demorar.";
     wrap.appendChild(p);
     return wrap;
   }

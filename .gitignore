@@ -13,6 +13,10 @@ firebase-service-account*.json
 # Config do Firebase cliente com valores reais (usar template)
 web/firebase-config.local.js
 
+# Token de disparo do agente — PÚBLICO no site mas NUNCA no git
+# (o GitHub revoga tokens detetados em repos públicos). Usar o .example.
+web/trigger-config.js
+
 # Directoria de trabalho do queue.js
 .work/
 *.tmp

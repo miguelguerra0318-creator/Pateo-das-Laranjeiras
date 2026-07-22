@@ -85,7 +85,7 @@
       </div>
       <aside class="card info-card">
         <h3>Como funciona</h3>
-        <p>O sistema acorda automaticamente <strong>de ~15 em 15 minutos</strong>. Assim que houver rascunhos prontos aparecem em <em>Os meus pedidos</em> com botões para copiar.</p>
+        <p>Ao submeter, o assistente <strong>começa a trabalhar logo</strong>. Os rascunhos aparecem em <em>Os meus pedidos</em> dentro de alguns minutos, com botões para copiar. Se demorar, há um botão <strong>"Processar agora"</strong> nessa página.</p>
         <p>Se um rascunho precisar de imagem, receberá também um <strong>prompt para colar no Gemini</strong> (Nano Banana, grátis) e gerar a imagem à mão. Nada é publicado por nós — os rascunhos são só seus, para copiar e usar onde quiser.</p>
       </aside>
     </section>
@@ -95,6 +95,11 @@
       <div class="card">
         <h2>Os meus pedidos</h2>
         <p class="muted">Clique num pedido para ver os rascunhos. Guarde os melhores na biblioteca com a estrela ⭐; arquive os restantes para manter esta lista limpa.</p>
+
+        <div class="requests-actions">
+          <button id="process-now-btn" class="primary small" type="button">Processar agora</button>
+          <span id="process-now-status" class="muted" aria-live="polite"></span>
+        </div>
 
         <div class="subsection">
           <h3 class="subhead"><span class="dot dot-pending"></span> Pendentes</h3>

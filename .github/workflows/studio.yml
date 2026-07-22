@@ -1,25 +1,16 @@
 name: Páteo Content Studio — queue
 
 # ─────────────────────────────────────────────────────────────────────────
-# Cron: a cada 15 min, entre 07:00 e 20:45 UTC.
+# 100% MANUAL — sem cron. O agente só corre quando é disparado:
+#   • pela app web (a sócia submete/carrega "Processar agora" → a app chama
+#     a API do GitHub workflow_dispatch), ou
+#   • manualmente aqui no separador Actions ("Run workflow").
 #
-# Isto cobre grosso modo 08:00–21:00 hora de Lisboa (com pequeno
-# deslocamento sazonal — GitHub cron não conhece DST):
-#   Inverno (UTC=Lisboa):  07:00–20:45 Lisboa
-#   Verão (UTC+1):         08:00–21:45 Lisboa
-#
-# Custo em minutos GitHub (repo privado, 2000 min/mês grátis):
-#   56 runs/dia × ~30 dias ≈ 1680 min/mês em runs "vazias" (queue.js sai
-#   em segundos quando não há pending). Sobra ~320 min/mês para os runs
-#   que efectivamente geram conteúdo (~3–6 min cada). Cabe com folga.
-#
-# Se um dia precisares de mais frequência, tornar o repo público
-# desbloqueia minutos ilimitados.
+# Sem runs automáticos = zero desperdício de minutos. Repo público ⇒ minutos
+# de Actions ilimitados de qualquer forma.
 # ─────────────────────────────────────────────────────────────────────────
 
 on:
-  schedule:
-    - cron: '*/15 7-20 * * *'
   workflow_dispatch: {}
 
 concurrency:

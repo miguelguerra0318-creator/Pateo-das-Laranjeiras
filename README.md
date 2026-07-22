@@ -23,7 +23,7 @@ Ferramenta interna para preparar conteúdo de marketing do **Páteo das Laranjei
     queue.js            # lê pedidos do Firestore, invoca o Claude Code, escreve resultados
 /web/                   # app web (Firebase Hosting) que a sócia usa
 /.github/workflows/
-    studio.yml          # cron do GitHub Actions
+    studio.yml          # GitHub Actions (só workflow_dispatch — disparado pela app)
 ```
 
 ---
@@ -32,11 +32,38 @@ Ferramenta interna para preparar conteúdo de marketing do **Páteo das Laranjei
 
 1. A sócia entra na app web, escreve um pedido em linguagem natural (ex.: _"3 posts de Instagram para um grupo de casamento que chega dia 12"_).
 2. O pedido fica gravado no **Firestore** como `pending`.
-3. De ~15 em 15 minutos, o **GitHub Actions** (ou o PC local, ver Plano B) acorda, corre o `queue.js`, que invoca o **Claude Code** headless.
+3. Ao submeter (ou ao carregar em "Processar agora"), a **app manda o GitHub Actions arrancar** o `queue.js`, que invoca o **Claude Code** headless. **Não há cron — só corre quando a sócia dispara.**
 4. O Claude Code lê o `/brand-brain/`, passa pelo **Dispatcher → especialista (Copywriter / OTA Editor) → Art Director → QA**, e escreve os resultados de volta no Firestore.
 5. A sócia recebe os rascunhos na app, com botões para **copiar** o texto e, quando há imagem, a **imagem já gerada** (Nano Banana) pronta a **descarregar**. Se a geração automática estiver desligada ou falhar, mostra antes o **prompt de imagem** para colar no Gemini à mão.
 
 **Nada é publicado automaticamente. Nenhuma mensagem é enviada a clientes.**
+
+---
+
+## Como a sócia dispara o agente (setup único do dono)
+
+O agente **não corre sozinho** (sem cron). É a **app** que o arranca quando a sócia submete um pedido ou carrega em **"Processar agora"**. Para isso, a app chama a API do GitHub para correr o workflow. Configuração (uma vez):
+
+1. **Tornar o repositório público** — GitHub → **Settings → General → Danger Zone → Change visibility → Public**. Isto dá **minutos de Actions ilimitados** e é necessário para o modelo escolhido.
+   - *Antes de tornar público:* confirmar que não há segredos no repo. A service account do Firebase e as chaves **nunca foram commitadas** (estão no `.gitignore`); os **secrets do GitHub Actions** (`FIREBASE_SERVICE_ACCOUNT`, `CLAUDE_CODE_OAUTH_TOKEN`) continuam **privados** mesmo com o repo público.
+2. **Criar um token do GitHub (fine-grained PAT):** GitHub → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+   - *Resource owner:* a conta dona do repo.
+   - *Repository access:* **Only select repositories** → este repo.
+   - *Permissions → Repository → Actions:* **Read and write**.
+   - Gerar e **copiar** o token.
+3. **Meter o token na app:** copiar `web/trigger-config.example.js` para **`web/trigger-config.js`**, colar o token no campo `token`, e **`firebase deploy --only hosting`**.
+   - `trigger-config.js` está no `.gitignore` — **nunca** o commites (o GitHub revoga tokens que apareçam em repos públicos).
+
+Feito isto, a sócia só usa o site: submete → o agente arranca → os rascunhos aparecem em poucos minutos.
+
+### 🔒 Segurança do site — registo para rever no futuro
+
+Modelo atual (escolhido por simplicidade, jul/2026):
+
+- **O token do GitHub está público no site** (`.../trigger-config.js`) e o **repositório é público**. Qualquer pessoa que descubra o site + token pode **disparar runs do agente**.
+- **Impacto máximo de abuso:** spam de runs → consome o crédito mensal de automação do Claude → a geração **pausa até ao mês seguinte**. **Sem custo monetário** (overflow do Claude OFF, minutos de Actions ilimitados). O token é **fine-grained, só _Actions_, só este repo** → **não** dá acesso a código, dados nem outros segredos.
+- **Manutenção:** o PAT expira (~1 ano) → é preciso gerar outro e repetir o passo 3.
+- **Como endurecer no futuro (mais seguro):** mover o token para um **Cloudflare Worker** grátis que valida o login Firebase da sócia e só então chama o GitHub — o token deixa de ser público e só a sócia autenticada dispara; o repo pode voltar a privado. A app já está preparada: basta trocar o destino do POST em `web/app.js` (`triggerAgent`) para o URL do Worker. Ver histórico da conversa/def. do Worker.
 
 ---
 
@@ -86,7 +113,7 @@ Ordem de construção (ver `CLAUDE_CODE_BUILD_PROMPT.md`):
 
 1. **Entrar** — email e palavra-passe atribuídos (login Firebase).
 2. **Novo pedido** — escrever em português o que precisa (ex.: _"3 posts de Instagram para um grupo de casamento que chega dia 12"_). Opcionalmente escolher idioma (PT por defeito, ou PT+EN) e segmento. Submeter.
-3. **Os meus pedidos** — os rascunhos aparecem dentro de ~15 min com estado (Pendente / A processar / Pronto / Erro). Em cada rascunho pronto:
+3. **Os meus pedidos** — os rascunhos aparecem dentro de alguns minutos com estado (Pendente / A processar / Pronto / Erro); há um botão **"Processar agora"** se precisar de reprocessar pendentes. Em cada rascunho pronto:
    - **Copiar** — copia o texto para colar no Instagram/Facebook/Wix/OTA.
    - **Copiar prompt de imagem** — copia o prompt para colar no Gemini (app grátis, Nano Banana) e gerar a imagem à mão.
    - **⭐ Guardar na biblioteca** — arquiva o rascunho para reutilizar.
