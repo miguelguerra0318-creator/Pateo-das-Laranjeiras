@@ -872,6 +872,28 @@ footer small { letter-spacing: 0.03em; }
 .photo-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .photo-cell:hover { border-color: var(--teal); transform: translateY(-2px); }
 
+/* ─── Pedir ajustes (revisão) ─── */
+
+.revise-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  padding: 0.9rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.revise-form textarea {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  resize: vertical;
+}
+.revise-form button { align-self: flex-start; }
+
 /* ─── Responsivo ─── */
 
 @media (max-width: 640px) {

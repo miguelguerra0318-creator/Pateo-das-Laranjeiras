@@ -572,9 +572,15 @@ function renderRequestBody(id, data) {
   const ctx = { requestId: id, segment: data.segment, type: data.type };
   results.forEach((r) => wrap.appendChild(renderResultCard(r, ctx)));
 
-  // Barra de arquivo do pedido inteiro.
+  // Barra de acções do pedido inteiro (pedir ajustes + arquivar).
   const bar = document.createElement("div");
   bar.className = "request-archive-bar";
+
+  const reviseBtn = document.createElement("button");
+  reviseBtn.className = "ghost small";
+  reviseBtn.type = "button";
+  reviseBtn.textContent = "Pedir ajustes";
+
   const archiveBtn = document.createElement("button");
   archiveBtn.className = "ghost small";
   archiveBtn.type = "button";
@@ -588,8 +594,52 @@ function renderRequestBody(id, data) {
       archiveBtn.disabled = false;
     }
   });
-  bar.appendChild(archiveBtn);
+  bar.append(reviseBtn, archiveBtn);
   wrap.appendChild(bar);
+
+  // Formulário inline de ajustes (revisão in-place: reprocessa o mesmo pedido).
+  const reviseForm = document.createElement("div");
+  reviseForm.className = "revise-form hidden";
+  const ta = document.createElement("textarea");
+  ta.rows = 3;
+  ta.placeholder = "O que ajustar? Ex.: headline mais curto, tom mais caloroso, tira a última linha…";
+  const sendBtn = document.createElement("button");
+  sendBtn.className = "primary small";
+  sendBtn.type = "button";
+  sendBtn.textContent = "Reprocessar com ajustes";
+  const reviseStatus = document.createElement("p");
+  reviseStatus.className = "status-message hidden";
+  reviseStatus.setAttribute("role", "status");
+  reviseForm.append(ta, sendBtn, reviseStatus);
+  wrap.appendChild(reviseForm);
+
+  reviseBtn.addEventListener("click", () => {
+    reviseForm.classList.toggle("hidden");
+    if (!reviseForm.classList.contains("hidden")) ta.focus();
+  });
+
+  sendBtn.addEventListener("click", async () => {
+    const adjustment = ta.value.trim();
+    if (!adjustment) { ta.focus(); return; }
+    sendBtn.disabled = true;
+    reviseStatus.classList.remove("hidden", "success");
+    reviseStatus.textContent = "A enviar o pedido de ajustes…";
+    try {
+      await updateDoc(doc(db, "requests", id), {
+        previousOutputs: results,
+        adjustment,
+        status: "pending",
+        archived: false,
+      });
+      try { await triggerAgent(); } catch (err) { console.error("Disparo do agente falhou:", err); }
+      reviseStatus.classList.add("success");
+      reviseStatus.textContent = "Ajustes enviados — o rascunho vai ser refeito dentro de alguns minutos.";
+    } catch (err) {
+      console.error("Falha ao pedir ajustes:", err);
+      reviseStatus.textContent = "Não foi possível enviar. Verifique a internet e tente de novo.";
+      sendBtn.disabled = false;
+    }
+  });
 
   return wrap;
 }
