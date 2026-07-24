@@ -11,6 +11,7 @@
     "web": "firebase serve --only hosting --port 5000"
   },
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "firebase-admin": "^13.0.0",
     "googleapis": "^144.0.0",
     "jimp": "^1.6.1"

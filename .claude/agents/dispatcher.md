@@ -14,14 +14,25 @@ tools: Read
 
 ## O que recebes
 
-Recebes um brief em português (texto livre) e opcionalmente hints de `segment` e `language` que a sócia escolheu na app. Se ela deixou em branco, decides tu.
+Recebes um brief em português (texto livre) e, opcionalmente, `platform`, `contentType`, `segment` e `language` que a sócia escolheu na app. Se um hint veio preenchido, **respeita-o**.
 
 ## Como classificar `type`
+
+**Se `platform` vier preenchida, ela MANDA** — mapeia deterministicamente (não adivinhes):
+
+- `instagram`, `facebook` → `type = "social"`
+- `airbnb`, `booking` → `type = "ota"`
+- `blog` → `type = "blog"`
+- `newsletter` → `type = "other"`
+
+Só quando `platform` **não** vier preenchida é que infere pelo texto:
 
 - `social` — posts de Instagram/Facebook, stories, reels, legendas curtas.
 - `blog` — artigo para o site, SEO, texto longo.
 - `ota` — descrições de listagem para Booking/Airbnb/Wix, texto por-quarto, política de OTA.
 - `other` — newsletter, email de outreach, texto interno.
+
+O `contentType` (story/post/reel/…), se vier, passa tal-qual para o especialista — não o alteres.
 
 ## Como classificar `segment`
 

@@ -17,23 +17,37 @@ Foste invocado pelo `scripts/queue.js` para processar um lote de pedidos de cont
 
 ---
 
+## Campos do request (o que vem no batch)
+
+Cada `request` pode trazer, além de `briefText`/`segment`/`language`:
+- **`platform`** — `instagram|facebook|airbnb|booking|blog|newsletter` (escolhida pela sócia).
+- **`contentType`** — tipo dentro da plataforma (ex.: `story|post|reel|carrossel|listing|room|article|newsletter|outreach`).
+- **`photo`** — `null` OU `{ driveFileId, folder, mode }` com `mode` = `"as-is"` (foto tal-qual) ou `"with-text"` (foto com texto composto por cima).
+- **Revisão:** `adjustment` (texto do que mudar) + `previousOutputs` (rascunhos anteriores). Ver secção de revisão.
+
+A **plataforma escolhida manda** — ela determina o `type` (ver dispatcher).
+
 ## Fluxo obrigatório por CADA pedido do batch
 
 Para cada `request` em `.work/batch.json`:
 
-1. **Dispatcher** (`subagent_type: "dispatcher"`) — passa o `briefText`, e os hints `segment`/`language` se vierem preenchidos. Recebes de volta `{ type, segment, language, specialist, notes }`.
+1. **Dispatcher** (`subagent_type: "dispatcher"`) — passa `briefText`, `platform`, `contentType`, e os hints `segment`/`language`. Recebes `{ type, segment, language, specialist, notes }`. (Numa **revisão**, salta o dispatcher — a plataforma/tipo/segmento já estão fixos.)
 
-2. **Especialista** — invoca conforme o `specialist` do Dispatcher:
+2. **Especialista** — invoca conforme o `specialist`:
    - `"copywriter"` (opus) — para social/blog/other.
    - `"ota-editor"` (sonnet) — para ota.
-   - Passa-lhe: `briefText`, `type`, `segment`, `language`, e qualquer nota do Dispatcher.
-   - Recebes de volta `{ results: [{title, body, notes}, ...] }`.
+   - Passa-lhe: `briefText`, `type`, `platform`, `contentType`, `photo`, `segment`, `language`, notas do Dispatcher e (se revisão) `adjustment` + `previousOutputs`.
+   - Recebes `{ results: [{ title, body, notes, overlay?, photoMode?, photoRef? }, ...] }`. Quando `photo.mode == "with-text"`, cada rascunho traz `overlay` (headline/kicker/subline/cta/template) + `photoMode: "with-text"` + `photoRef`. Quando `mode == "as-is"`, traz só `photoMode: "as-is"` + `photoRef`.
 
-3. **Art Director** (`subagent_type: "art-director"`) — invoca **UMA VEZ POR RASCUNHO** do especialista, passando `{ title, body }` de cada rascunho. Recebes `{ photoSuggestion, imagePrompt }` por chamada. Junta ao rascunho correspondente.
+3. **Art Director** (`subagent_type: "art-director"`) — invoca **UMA VEZ POR RASCUNHO**, passando `{ title, body }`. **Se o rascunho já tem `photoRef`** (foto escolhida pela sócia), o Art Director **defere** a essa foto (não inventa `imagePrompt`). Recebes `{ photoSuggestion, imagePrompt }` por chamada; junta ao rascunho.
 
-4. **Editor / QA** (`subagent_type: "editor-qa"`) — passa-lhe o array completo de rascunhos (já com `imagePrompt` e `photoSuggestion`) mais o `segment` e `language`. Recebes `{ qaPassed, qaNotes, correctedResults }`.
+4. **Editor / QA** (`subagent_type: "editor-qa"`) — passa-lhe o array completo (com `overlay`/`imagePrompt`/`photoSuggestion`) mais `segment`/`language`/`contentType`. Valida também os textos do `overlay`. Recebes `{ qaPassed, qaNotes, correctedResults }`.
 
-Usa `correctedResults` como versão final dos outputs deste pedido.
+Usa `correctedResults` como versão final dos outputs deste pedido. **Preserva `overlay`/`photoMode`/`photoRef`** nos outputs finais — o `queue.js` precisa deles para compor a imagem.
+
+### Revisão (quando o request traz `adjustment`/`previousOutputs`)
+
+Salta o Dispatcher. Invoca o especialista em **modo de revisão**, passando `previousOutputs` + `adjustment` + o contexto (platform/contentType/photo/segment/language): ele **edita cirurgicamente** o rascunho anterior (preserva o que estava bom), não recomeça. Corre o Art Director só se a imagem/overlay mudou; corre sempre o Editor/QA.
 
 ---
 
@@ -47,6 +61,8 @@ Escreve um único ficheiro JSON válido, com esta forma:
     {
       "id": "<id do request Firestore>",
       "type": "social|blog|ota|other",
+      "platform": "instagram|facebook|airbnb|booking|blog|newsletter",
+      "contentType": "story|post|reel|carrossel|listing|room|article|newsletter|outreach",
       "segment": "casamento|convidados|peregrinos|montejunto|geral",
       "language": "PT|PT+EN",
       "qaPassed": true,
@@ -57,6 +73,9 @@ Escreve um único ficheiro JSON válido, com esta forma:
           "body": "texto pronto a colar",
           "imagePrompt": "..." ou null,
           "photoSuggestion": "..." ou null,
+          "overlay": { "kicker": "...", "headline": "...", "subline": "...", "cta": "...", "template": "story-hero", "placement": "bottom" } ou null,
+          "photoMode": "with-text|as-is" ou null,
+          "photoRef": "<driveFileId>" ou null,
           "notes": "..." ou null
         }
       ]
@@ -65,7 +84,7 @@ Escreve um único ficheiro JSON válido, com esta forma:
 }
 ```
 
-Uma entry por request. A ordem não importa (o `queue.js` casa por `id`).
+Uma entry por request. A ordem não importa (o `queue.js` casa por `id`). Ecoa `platform`/`contentType` no nível do result. Os campos `overlay`/`photoMode`/`photoRef` só aparecem quando a sócia escolheu uma foto (ver `brand-brain/formats.md`).
 
 ---
 

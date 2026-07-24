@@ -22,6 +22,7 @@ import { resolve as resolvePath } from "node:path";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { Jimp, JimpMime } from "jimp";
+import { composeOverlay } from "./overlay-templates.js";
 
 // ─── Config ─────────────────────────────────────────────────────────────
 
@@ -210,6 +211,63 @@ async function generateImagesFor(db, results) {
   log(`Imagens geradas neste run: ${generated}`);
 }
 
+// ─── Composição de fotos escolhidas do banco ────────────────────────────
+// Para cada output que use uma foto escolhida pela sócia, lê a versão `render`
+// da colecção `photos` e:
+//   • mode "with-text" + overlay → compõe o texto com o template SVG de marca;
+//   • mode "as-is"               → usa a foto tal-qual.
+// Grava a imagem final na colecção `images` e anexa `imageRef` ao output — o UI
+// reutiliza o mesmo caminho de display/download das imagens geradas.
+async function compositePhotosFor(db, requests, results) {
+  const reqById = new Map(requests.map((r) => [r.id, r]));
+  for (const result of results) {
+    const reqPhoto = reqById.get(result.id)?.photo || null;
+    const outs = Array.isArray(result.outputs) ? result.outputs : [];
+    for (const out of outs) {
+      if (!out || out.imageRef) continue; // já tem imagem (gerada) → não sobrepor
+      const driveFileId = out.photoRef || reqPhoto?.driveFileId;
+      if (!driveFileId) continue; // sem foto escolhida
+      const mode = out.photoMode || reqPhoto?.mode || "as-is";
+      try {
+        const snap = await db.collection("photos").doc(driveFileId).get();
+        if (!snap.exists) {
+          log(`Foto ${driveFileId} não está no banco (correr o sync?). Ignorada.`);
+          continue;
+        }
+        const photo = snap.data();
+        let data, mime;
+        if (mode === "with-text" && out.overlay && out.overlay.headline) {
+          const composed = await composeOverlay({
+            photoBase64: photo.render,
+            mime: photo.mime || "image/jpeg",
+            overlay: out.overlay,
+            contentType: result.contentType
+          });
+          data = composed.data;
+          mime = composed.mime;
+        } else {
+          // "como está": a `render` já é JPEG ~1080px, usa-se directamente.
+          data = photo.render;
+          mime = photo.mime || "image/jpeg";
+        }
+        const ref = db.collection("images").doc();
+        await ref.set({
+          data,
+          mime,
+          source: "photo",
+          driveFileId,
+          mode,
+          createdAt: FieldValue.serverTimestamp()
+        });
+        out.imageRef = ref.id;
+        log(`Foto composta → images/${ref.id} (${mode}, ${Math.round(data.length / 1024)}KB base64)`);
+      } catch (err) {
+        log(`Falha a compor foto ${driveFileId}: ${err.message}`);
+      }
+    }
+  }
+}
+
 // ─── Marcar pedidos como erro em lote (para falhas globais) ─────────────
 
 async function markAllAsError(db, requests, reason) {
@@ -265,8 +323,15 @@ async function main() {
   const batchInput = requests.map((r) => ({
     id: r.id,
     briefText: r.briefText || "",
+    platform: r.platform || null,
+    contentType: r.contentType || null,
+    photo: r.photo || null,
     segment: r.segment || null,
-    language: r.language || "PT"
+    language: r.language || "PT",
+    ...(r.adjustment ? { adjustment: r.adjustment } : {}),
+    ...(Array.isArray(r.previousOutputs) && r.previousOutputs.length
+      ? { previousOutputs: r.previousOutputs }
+      : {})
   }));
   writeFileSync(BATCH_FILE, JSON.stringify(batchInput, null, 2), "utf8");
   log(`Escrito ${BATCH_FILE} (${batchInput.length} entries).`);
@@ -313,6 +378,9 @@ async function main() {
   //     Anexa `imageRef` a cada output gerado; falhas mantêm o prompt manual.
   await generateImagesFor(db, output.results);
 
+  // 5c. Compor fotos escolhidas do banco (foto como está ou com texto SVG).
+  await compositePhotosFor(db, requests, output.results);
+
   // 6. Escrever resultados de volta ao Firestore
   const resultsById = new Map(output.results.map((r) => [r.id, r]));
   const doneBatch = db.batch();
@@ -334,11 +402,16 @@ async function main() {
     doneBatch.update(db.collection("requests").doc(req.id), {
       status: passed ? "done" : "error",
       type: result.type || null,
+      platform: result.platform || req.platform || null,
+      contentType: result.contentType || req.contentType || null,
       segment: result.segment || req.segment || null,
       language: result.language || req.language || "PT",
       qaPassed: passed,
       qaNotes: result.qaNotes || null,
       results: Array.isArray(result.outputs) ? result.outputs : [],
+      // Após reprocessar uma revisão, limpar os campos temporários.
+      adjustment: FieldValue.delete(),
+      previousOutputs: FieldValue.delete(),
       processedAt: FieldValue.serverTimestamp()
     });
     if (passed) doneCount++; else errorCount++;

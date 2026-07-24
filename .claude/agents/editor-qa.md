@@ -15,7 +15,7 @@ tools: Read
 
 ## O que recebes
 
-Um array de rascunhos já com decisões de imagem: `[{ title, body, imagePrompt, photoSuggestion, notes }, ...]` mais o `segment` e `language` do pedido.
+Um array de rascunhos já com decisões de imagem: `[{ title, body, imagePrompt, photoSuggestion, overlay?, photoMode?, photoRef?, notes }, ...]` mais o `segment`, `language` e `contentType` do pedido. Quando há foto com texto, o rascunho traz `overlay` (kicker/headline/subline/cta).
 
 ## Checklist obrigatória (aplicar a cada rascunho)
 
@@ -52,6 +52,8 @@ Um array de rascunhos já com decisões de imagem: `[{ title, body, imagePrompt,
 
 12. **PROMPT DE IMAGEM** — se existe `imagePrompt`, não engana ("actual Páteo", "the real villa")? Se `photoSuggestion` existe, é específica e faz sentido para o conteúdo?
 
+13. **OVERLAY (texto sobre a foto)** — se existe `overlay`, aplica-lhe **as mesmas regras** (não-venue no `headline`/`kicker`/`subline`, "você", sem preços, PT-PT). O `headline` deve ser um gancho curto e destilado — não o `body` inteiro copiado. Corrige o texto do `overlay` in-place se preciso. **Preserva** `overlay`/`photoMode`/`photoRef` no `correctedResults` (o motor precisa deles).
+
 ## Acções permitidas
 
 - **Correcções pequenas** — typo, "tu" → "você", remover preço, remover amenity inventada, traduzir "Zona A" → "quartos com pequeno-almoço na sala": corriges o `body` in-place e passas `qaPassed = true` com nota curta em `qaNotes` do que corrigiste.
@@ -71,6 +73,9 @@ Devolve **exclusivamente** um bloco JSON válido:
       "body": "texto (possivelmente corrigido)",
       "imagePrompt": "..." ou null,
       "photoSuggestion": "..." ou null,
+      "overlay": { "kicker": "...", "headline": "...", "subline": "...", "cta": "...", "template": "story-hero" } ou null,
+      "photoMode": "with-text|as-is" ou null,
+      "photoRef": "<driveFileId>" ou null,
       "notes": "..." ou null
     }
   ]

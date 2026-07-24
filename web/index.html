@@ -55,10 +55,45 @@
         <h2>Novo pedido</h2>
         <p class="muted">Descreva em português o que precisa. Ex.: <em>"3 posts de Instagram para um grupo de casamento que chega dia 12 de setembro"</em>.</p>
         <form id="new-request-form">
+          <div class="row">
+            <label class="col">
+              Plataforma
+              <select id="brief-platform" required>
+                <option value="" selected disabled>Escolha…</option>
+              </select>
+            </label>
+            <label class="col">
+              Tipo de conteúdo
+              <select id="brief-content-type" required disabled>
+                <option value="" selected disabled>Escolha a plataforma primeiro</option>
+              </select>
+            </label>
+          </div>
+
           <label>
             O que precisa?
-            <textarea id="brief-text" rows="6" required placeholder="Descreva aqui..."></textarea>
+            <textarea id="brief-text" rows="6" required placeholder="Descreva o conteúdo que quer..."></textarea>
           </label>
+
+          <div class="photo-field">
+            <div class="photo-field-head">
+              <span>Foto do banco <span class="muted">(opcional)</span></span>
+              <button type="button" id="photo-picker-open" class="ghost small">Escolher foto</button>
+            </div>
+            <div id="photo-chosen" class="photo-chosen hidden">
+              <img id="photo-chosen-thumb" alt="Foto escolhida">
+              <div class="photo-chosen-meta">
+                <span id="photo-chosen-name" class="photo-chosen-name"></span>
+                <div class="photo-mode" id="photo-mode">
+                  <label><input type="radio" name="photo-mode" value="as-is" checked> Usar como está</label>
+                  <label id="photo-mode-withtext"><input type="radio" name="photo-mode" value="with-text"> Usar com texto por cima</label>
+                </div>
+                <button type="button" id="photo-clear" class="link-btn">Remover foto</button>
+              </div>
+            </div>
+            <p id="photo-field-hint" class="muted small">Sem foto: o pedido é só de texto (ou recebe um prompt de imagem, como antes).</p>
+          </div>
+
           <div class="row">
             <label class="col">
               Idioma
@@ -296,6 +331,20 @@
         <p id="pe-status" class="status-message hidden" role="status"></p>
       </div>
     </section>
+
+    <!-- Seletor de fotos do banco -->
+    <div id="photo-picker-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="photo-picker-title">
+      <div class="modal">
+        <div class="modal-head">
+          <h3 id="photo-picker-title">Escolher foto do banco</h3>
+          <button type="button" id="photo-picker-close" class="ghost small">Fechar</button>
+        </div>
+        <input type="search" id="photo-picker-search" placeholder="Filtrar por nome ou quarto/zona...">
+        <div id="photo-picker-body" class="photo-picker-body">
+          <p class="empty">A carregar fotos...</p>
+        </div>
+      </div>
+    </div>
   </main>
 
   <footer>
