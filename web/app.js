@@ -22,9 +22,15 @@ import {
   serverTimestamp,
   doc,
   getDoc,
+  getDocs,
   Timestamp
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
+import {
+  PLATFORMS,
+  contentTypesFor,
+  OVERLAY_CONTENT_TYPES
+} from "./content-taxonomy.js";
 
 // ─── Init ───────────────────────────────────────────────────────────────
 
@@ -154,6 +160,155 @@ function translateAuthError(err) {
   return "Não foi possível entrar. Tente de novo.";
 }
 
+// ─── Novo pedido — plataforma, tipo de conteúdo e foto do banco ─────────
+
+function escHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+let chosenPhoto = null;   // { driveFileId, folder, name, thumb, mime } ou null
+let photosCache = null;   // docs de `photos`, carregados à 1ª abertura do seletor
+
+const platformSelect = $("#brief-platform");
+const contentTypeSelect = $("#brief-content-type");
+
+for (const p of PLATFORMS) {
+  const opt = document.createElement("option");
+  opt.value = p.value;
+  opt.textContent = p.label;
+  platformSelect.appendChild(opt);
+}
+
+platformSelect.addEventListener("change", () => {
+  const types = contentTypesFor(platformSelect.value);
+  contentTypeSelect.innerHTML = '<option value="" selected disabled>Escolha…</option>';
+  for (const t of types) {
+    const opt = document.createElement("option");
+    opt.value = t.value;
+    opt.textContent = t.label;
+    contentTypeSelect.appendChild(opt);
+  }
+  contentTypeSelect.disabled = types.length === 0;
+  updatePhotoModeVisibility();
+});
+
+contentTypeSelect.addEventListener("change", updatePhotoModeVisibility);
+
+// A opção "com texto por cima" só aparece para formatos que aceitam overlay.
+function updatePhotoModeVisibility() {
+  const withText = $("#photo-mode-withtext");
+  if (!withText) return;
+  const supported = OVERLAY_CONTENT_TYPES.has(contentTypeSelect.value);
+  withText.classList.toggle("hidden", !supported);
+  if (!supported) {
+    const asIs = document.querySelector('input[name="photo-mode"][value="as-is"]');
+    if (asIs) asIs.checked = true;
+  }
+}
+
+// ── Seletor de fotos do banco ──
+const photoModal = $("#photo-picker-modal");
+
+$("#photo-picker-open").addEventListener("click", openPhotoPicker);
+$("#photo-picker-close").addEventListener("click", closePhotoPicker);
+photoModal.addEventListener("click", (e) => { if (e.target === photoModal) closePhotoPicker(); });
+$("#photo-picker-search").addEventListener("input", () => renderPhotoGrid($("#photo-picker-search").value));
+$("#photo-clear").addEventListener("click", clearChosenPhoto);
+
+async function openPhotoPicker() {
+  photoModal.classList.remove("hidden");
+  if (photosCache === null) {
+    try {
+      const snap = await getDocs(collection(db, "photos"));
+      photosCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.error("Erro a carregar fotos:", err);
+      $("#photo-picker-body").innerHTML = '<p class="empty">Não foi possível carregar as fotos.</p>';
+      return;
+    }
+  }
+  renderPhotoGrid($("#photo-picker-search").value);
+}
+
+function closePhotoPicker() { photoModal.classList.add("hidden"); }
+
+function renderPhotoGrid(term) {
+  const body = $("#photo-picker-body");
+  const photos = photosCache || [];
+  if (!photos.length) {
+    body.innerHTML = '<p class="empty">Ainda não há fotos no banco. Corra o sync de fotos primeiro.</p>';
+    return;
+  }
+  const q = (term || "").trim().toLowerCase();
+  const filtered = q
+    ? photos.filter((p) => ((p.name || "") + " " + (p.folder || "")).toLowerCase().includes(q))
+    : photos;
+  if (!filtered.length) {
+    body.innerHTML = '<p class="empty">Nada corresponde à pesquisa.</p>';
+    return;
+  }
+  const byFolder = new Map();
+  for (const p of filtered) {
+    const f = p.folder || "Sem pasta";
+    if (!byFolder.has(f)) byFolder.set(f, []);
+    byFolder.get(f).push(p);
+  }
+  body.innerHTML = [...byFolder.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], "pt"))
+    .map(([folder, items]) => {
+      const cells = items.map((p) => `
+        <button type="button" class="photo-cell" data-id="${escHtml(p.id)}" title="${escHtml(p.name || "")}">
+          <img src="data:${escHtml(p.mime || "image/jpeg")};base64,${p.thumb}" alt="${escHtml(p.name || "")}" loading="lazy">
+        </button>`).join("");
+      return `<div class="photo-group"><h4>${escHtml(folder)}</h4><div class="photo-grid">${cells}</div></div>`;
+    }).join("");
+  body.querySelectorAll(".photo-cell").forEach((btn) => {
+    btn.addEventListener("click", () => selectPhoto(btn.dataset.id));
+  });
+}
+
+function selectPhoto(id) {
+  const p = (photosCache || []).find((x) => x.id === id);
+  if (!p) return;
+  chosenPhoto = {
+    driveFileId: p.driveFileId || p.id,
+    folder: p.folder || "",
+    name: p.name || "",
+    thumb: p.thumb,
+    mime: p.mime || "image/jpeg"
+  };
+  $("#photo-chosen-thumb").src = `data:${chosenPhoto.mime};base64,${chosenPhoto.thumb}`;
+  $("#photo-chosen-name").textContent =
+    `${chosenPhoto.name}${chosenPhoto.folder ? " · " + chosenPhoto.folder : ""}`;
+  $("#photo-chosen").classList.remove("hidden");
+  $("#photo-field-hint").classList.add("hidden");
+  updatePhotoModeVisibility();
+  closePhotoPicker();
+}
+
+function clearChosenPhoto() {
+  chosenPhoto = null;
+  $("#photo-chosen").classList.add("hidden");
+  $("#photo-field-hint").classList.remove("hidden");
+  const asIs = document.querySelector('input[name="photo-mode"][value="as-is"]');
+  if (asIs) asIs.checked = true;
+}
+
+function chosenPhotoMode() {
+  const el = document.querySelector('input[name="photo-mode"]:checked');
+  return el ? el.value : "as-is";
+}
+
+function resetNewRequestForm() {
+  $("#brief-text").value = "";
+  $("#brief-segment").value = "";
+  platformSelect.value = "";
+  contentTypeSelect.innerHTML = '<option value="" selected disabled>Escolha a plataforma primeiro</option>';
+  contentTypeSelect.disabled = true;
+  clearChosenPhoto();
+}
+
 // ─── Novo pedido ────────────────────────────────────────────────────────
 
 $("#new-request-form").addEventListener("submit", async (e) => {
@@ -164,10 +319,21 @@ $("#new-request-form").addEventListener("submit", async (e) => {
   const briefText = $("#brief-text").value.trim();
   const language = $("#brief-language").value;
   const segment = $("#brief-segment").value || null;
+  const platform = platformSelect.value || null;
+  const contentType = contentTypeSelect.value || null;
   const statusEl = $("#new-request-status");
   const submitBtn = e.target.querySelector('button[type="submit"]');
 
   if (!briefText) return;
+  if (!platform || !contentType) {
+    statusEl.classList.remove("hidden", "success");
+    statusEl.textContent = "Escolha a plataforma e o tipo de conteúdo.";
+    return;
+  }
+
+  const photo = chosenPhoto
+    ? { driveFileId: chosenPhoto.driveFileId, folder: chosenPhoto.folder, mode: chosenPhotoMode() }
+    : null;
 
   submitBtn.disabled = true;
   statusEl.classList.add("hidden");
@@ -179,6 +345,9 @@ $("#new-request-form").addEventListener("submit", async (e) => {
       status: "pending",
       requestedBy: user.email,
       briefText,
+      platform,
+      contentType,
+      photo,
       type: null,
       segment,
       language,
@@ -187,8 +356,7 @@ $("#new-request-form").addEventListener("submit", async (e) => {
       qaNotes: null,
       processedAt: null,
     });
-    $("#brief-text").value = "";
-    $("#brief-segment").value = "";
+    resetNewRequestForm();
     statusEl.classList.remove("hidden");
     statusEl.classList.add("success");
     statusEl.textContent = "Pedido recebido. A pôr o assistente a trabalhar…";
