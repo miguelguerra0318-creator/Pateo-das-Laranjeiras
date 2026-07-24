@@ -77,7 +77,8 @@ async function listAll(drive, q) {
       pageSize: 200,
       pageToken,
       supportsAllDrives: true,
-      includeItemsFromAllDrives: true
+      includeItemsFromAllDrives: true,
+      corpora: "allDrives"
     });
     files.push(...(res.data.files || []));
     pageToken = res.data.nextPageToken;
@@ -117,19 +118,21 @@ async function toJpegBase64(sourceImg, max, quality) {
 //   (a) a pasta-raiz contém sub-pastas (uma por quarto/zona);
 //   (b) a pasta-raiz é ela própria um quarto (contém imagens directamente) —
 //       útil para testar com uma só pasta.
-async function collectPhotoFolders(drive, rootId) {
+async function collectPhotoFolders(drive, rootId, rootName) {
   const groups = [];
 
   const subFolders = await listAll(
     drive,
     `'${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
   );
+  log(`Sub-pastas encontradas: ${subFolders.length}${subFolders.length ? " (" + subFolders.map((f) => f.name).join(", ") + ")" : ""}.`);
 
   for (const folder of subFolders) {
     const images = await listAll(
       drive,
       `'${folder.id}' in parents and mimeType contains 'image/' and trashed = false`
     );
+    log(`  · "${folder.name}": ${images.length} imagem(ns).`);
     if (images.length) groups.push({ folder: folder.name, files: images });
   }
 
@@ -138,8 +141,8 @@ async function collectPhotoFolders(drive, rootId) {
     drive,
     `'${rootId}' in parents and mimeType contains 'image/' and trashed = false`
   );
+  log(`Imagens directamente na raiz: ${rootImages.length}.`);
   if (rootImages.length) {
-    const rootName = await getFolderName(drive, rootId);
     groups.push({ folder: rootName, files: rootImages });
   }
 
@@ -180,9 +183,20 @@ async function main() {
 
   log(`sync-photos: a ler a pasta ${DRIVE_FOLDER_ID} do Drive (service account: ${credentials.client_email}).`);
 
-  const groups = await collectPhotoFolders(drive, DRIVE_FOLDER_ID);
+  // Verificação de acesso: se a service account não vê a pasta, dá erro claro.
+  let rootName;
+  try {
+    rootName = await getFolderName(drive, DRIVE_FOLDER_ID);
+    log(`Pasta-raiz acessível: "${rootName}".`);
+  } catch (err) {
+    log(`ERRO DE ACESSO: a service account não consegue abrir a pasta ${DRIVE_FOLDER_ID}.`);
+    log(`→ Partilha a pasta com ${credentials.client_email} (Leitor) e confirma que ficou aplicado. Detalhe: ${err.message}`);
+    return;
+  }
+
+  const groups = await collectPhotoFolders(drive, DRIVE_FOLDER_ID, rootName);
   if (!groups.length) {
-    log("Nenhuma foto encontrada. Verifica o id da pasta e a partilha com a service account.");
+    log("Nenhuma foto encontrada (a pasta abre, mas não tem imagens visíveis à service account nas sub-pastas nem na raiz).");
     return;
   }
 
