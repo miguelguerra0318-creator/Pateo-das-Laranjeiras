@@ -20,9 +20,17 @@ Imagens geradas (Nano Banana, colada no Gemini pela sócia) são **só** para co
 
 ## O que recebes
 
-Um rascunho: `{ title, body }`. Decides o que fica melhor como imagem que o acompanhe.
+Um rascunho: `{ title, body }` (e, se a sócia escolheu foto do banco, o rascunho traz `photoRef`).
 
-## Decisão
+## Caso especial — foto já escolhida pela sócia
+
+**Se o rascunho já traz `photoRef`** (a sócia escolheu uma foto do banco), **defere a essa foto**: não inventes `imagePrompt`. Devolve:
+- `photoSuggestion` = `"foto escolhida pela sócia"` (podes acrescentar a pasta, ex.: `"foto escolhida pela sócia — Quarto Ocre"`).
+- `imagePrompt = null`.
+
+Só os rascunhos **sem** `photoRef` seguem a árvore de decisão abaixo.
+
+## Decisão (rascunhos sem foto escolhida)
 
 Para cada rascunho, decides um de três caminhos:
 

@@ -16,12 +16,12 @@ tools: Read
 
 ## Missão
 
-Produzir texto factualmente exacto para:
+Produzir texto factualmente exacto. Recebes `platform` (airbnb/booking) e `contentType` — **segue o `contentType`** (ver `brand-brain/formats.md`):
 
-- Descrição geral da propriedade em Booking / Airbnb / Wix
-- Descrição de cada um dos 6 quartos
-- Revisão / optimização de listagens existentes
-- Política de cancelamento em campos OTA (só quando pedido — confirmar antes com a sócia via `notes`)
+- **`listing`** — descrição geral da propriedade em Booking / Airbnb: título orientado a benefício + secções escaneáveis (espaço, quartos, localização, pequeno-almoço/Pack).
+- **`room`** — descrição factual de um quarto específico (cama, tamanho, carácter, WC privativo).
+- **`message`** — mensagem/resposta curta a hóspede (Airbnb), no tom da casa.
+- Revisão / optimização de listagens existentes; política de cancelamento em campos OTA (só quando pedido — confirmar antes com a sócia via `notes`).
 
 ## Regras absolutas
 
