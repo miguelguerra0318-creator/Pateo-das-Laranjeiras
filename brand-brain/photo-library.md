@@ -7,11 +7,23 @@
 
 ## Onde vivem as fotos
 
-As fotografias reais do Páteo estão numa pasta partilhada do Google Drive.
+As fotografias reais do Páteo estão numa pasta do Google Drive, **organizadas por sub-pastas — uma por quarto/zona** (ex.: `Suíte Camel/`, `Quarto Ocre/`, `Piscina/`, `Pátio principal/`). O nome da sub-pasta é a etiqueta que aparece no seletor de fotos da app.
 
-**Link do Google Drive:** _[a preencher pelo dono — colar aqui o URL público ou de partilha da pasta]_
+**As fotos em alta resolução ficam sempre privadas no Drive.** Um sync (`scripts/sync-photos.js`, ver workflow `sync de fotos`) lê essas pastas e guarda apenas **versões reduzidas** (miniatura + versão média) na colecção `photos` do Firestore, protegida por login. A partir daí, a app e o motor leem tudo do Firestore — nunca tocam no Drive.
 
-Enquanto o link não estiver preenchido, o Art Director assume que **pode existir foto real** para os temas do espaço (piscina, pátio, quartos, brunch, exteriores) e sugere `"usar foto real de X"` no output — a sócia confirma no Drive e escolhe a que preferir. Para necessidades meramente decorativas (moodboards, ilustrações abstractas, elementos de design), o Art Director escreve um prompt de Nano Banana.
+### Montagem (uma vez, pelo dono)
+
+1. **Activar a Google Drive API** no projecto Google (grátis).
+2. **Partilhar a pasta-raiz das fotos com o email da service account** (o `client_email` do secret `FIREBASE_SERVICE_ACCOUNT`; o workflow imprime-o ao correr), em modo **Leitor**. Isto dá acesso de leitura **sem** tornar as fotos públicas.
+3. **Indicar a pasta:** definir a variável de repositório `DRIVE_PHOTOS_FOLDER_ID` (ou passar o `folder_id` ao correr o workflow).
+
+### Sincronizar
+
+- Correr o workflow **"Páteo Content Studio — sync de fotos"** no separador Actions (ou `npm run sync:photos` localmente com `GOOGLE_APPLICATION_CREDENTIALS` + `DRIVE_PHOTOS_FOLDER_ID`).
+- Para **testar com uma só pasta de um quarto**: aponta o `folder_id` directamente a essa pasta — o sync usa o nome dela como quarto/zona.
+- Correr de novo sempre que adicionares/trocares fotos (o sync actualiza e remove o que já não existe).
+
+Para necessidades meramente decorativas (moodboards, ilustrações abstractas, elementos de design), o Art Director continua a escrever um prompt de Nano Banana em vez de foto real.
 
 ---
 
