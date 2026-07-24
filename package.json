@@ -6,11 +6,13 @@
   "type": "module",
   "scripts": {
     "queue": "node scripts/queue.js",
+    "sync:photos": "node scripts/sync-photos.js",
     "smoke:firestore": "node scripts/smoke-firestore.js",
     "web": "firebase serve --only hosting --port 5000"
   },
   "dependencies": {
     "firebase-admin": "^13.0.0",
+    "googleapis": "^144.0.0",
     "jimp": "^1.6.1"
   }
 }

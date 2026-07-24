@@ -1,0 +1,70 @@
+name: Páteo Content Studio — sync de fotos
+
+# ─────────────────────────────────────────────────────────────────────────
+# 100% MANUAL — sem cron (as fotos mudam pouco). Corre quando disparado:
+#   • aqui no separador Actions ("Run workflow"), indicando a pasta, ou
+#   • futuramente, a partir da app (botão "sincronizar fotos").
+#
+# Lê as pastas de fotos do Google Drive e escreve versões reduzidas na
+# colecção `photos` do Firestore. Só este job acede ao Drive.
+#
+# Montagem necessária (uma vez):
+#   1. Activar a Google Drive API no projecto Google (grátis).
+#   2. Partilhar a pasta-raiz das fotos com o email da service account
+#      (client_email do secret FIREBASE_SERVICE_ACCOUNT), em modo "Leitor".
+#   3. Indicar a pasta: input "folder_id" ao correr, OU a variável de
+#      repositório DRIVE_PHOTOS_FOLDER_ID (Settings → Variables).
+# ─────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      folder_id:
+        description: "ID da pasta do Drive a sincronizar (deixa em branco para usar a variável DRIVE_PHOTOS_FOLDER_ID)"
+        required: false
+        type: string
+
+concurrency:
+  group: studio-sync-photos
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências do projeto
+        run: npm ci
+
+      - name: Preparar credenciais do Firebase (service account)
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT não está definido no repositório."
+            exit 1
+          fi
+          SA_PATH="$RUNNER_TEMP/firebase-sa.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$SA_PATH"
+          node -e "const j = JSON.parse(require('fs').readFileSync('$SA_PATH', 'utf8')); if (!j.project_id) throw new Error('project_id em falta na service account'); console.log('service account OK — project:', j.project_id, '· partilha a pasta com:', j.client_email);"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$SA_PATH" >> "$GITHUB_ENV"
+
+      - name: Correr sync-photos.js
+        env:
+          DRIVE_PHOTOS_FOLDER_ID: ${{ inputs.folder_id != '' && inputs.folder_id || vars.DRIVE_PHOTOS_FOLDER_ID }}
+        run: |
+          if [ -z "$DRIVE_PHOTOS_FOLDER_ID" ]; then
+            echo "::error::Sem pasta para sincronizar. Indica o input 'folder_id' ou define a variável DRIVE_PHOTOS_FOLDER_ID."
+            exit 1
+          fi
+          node scripts/sync-photos.js
