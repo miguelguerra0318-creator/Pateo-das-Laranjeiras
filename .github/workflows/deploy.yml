@@ -1,0 +1,68 @@
+name: Páteo Content Studio — deploy (Hosting + regras)
+
+# ─────────────────────────────────────────────────────────────────────────
+# 100% MANUAL — publica o site (Firebase Hosting) e/ou as regras do Firestore.
+# Corre quando disparado no separador Actions ("Run workflow").
+#
+# Usa o secret FIREBASE_SERVICE_ACCOUNT (o mesmo do queue.js/sync). Para o
+# deploy funcionar, a conta de serviço precisa de DUAS permissões (uma vez),
+# na consola Google Cloud → IAM, para o email client_email do secret:
+#   • Firebase Hosting Admin   (roles/firebasehosting.admin)
+#   • Firebase Rules Admin     (roles/firebaserules.admin)
+# (Se faltarem, o deploy falha com erro de permissões — o log diz qual.)
+# ─────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "O que publicar"
+        required: true
+        default: "hosting,firestore:rules"
+        type: choice
+        options:
+          - "hosting,firestore:rules"
+          - "hosting"
+          - "firestore:rules"
+
+concurrency:
+  group: studio-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Preparar credenciais do Firebase (service account)
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT não está definido no repositório."
+            exit 1
+          fi
+          SA_PATH="$RUNNER_TEMP/firebase-sa.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$SA_PATH"
+          node -e "const j = JSON.parse(require('fs').readFileSync('$SA_PATH', 'utf8')); if (!j.project_id) throw new Error('project_id em falta na service account'); console.log('service account OK — project:', j.project_id, '· conta:', j.client_email);"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$SA_PATH" >> "$GITHUB_ENV"
+
+      - name: Deploy
+        run: |
+          firebase deploy \
+            --only "${{ inputs.target }}" \
+            --project pateo-das-laranjeiras \
+            --non-interactive \
+            --force
