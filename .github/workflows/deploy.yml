@@ -59,6 +59,26 @@ jobs:
           node -e "const j = JSON.parse(require('fs').readFileSync('$SA_PATH', 'utf8')); if (!j.project_id) throw new Error('project_id em falta na service account'); console.log('service account OK — project:', j.project_id, '· conta:', j.client_email);"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$SA_PATH" >> "$GITHUB_ENV"
 
+      - name: Gerar web/trigger-config.js (a partir do secret TRIGGER_TOKEN)
+        env:
+          TRIGGER_TOKEN: ${{ secrets.TRIGGER_TOKEN }}
+        run: |
+          # O trigger-config.js está no .gitignore (não vai no checkout), por isso
+          # gera-se aqui a partir do secret. Sem ele, o site publicado ficaria sem
+          # o disparo do motor ("Processar agora" diria "não configurado").
+          if [ -z "$TRIGGER_TOKEN" ]; then
+            echo "::warning::Secret TRIGGER_TOKEN não definido — o site vai sem disparo automático. Define-o em Settings → Secrets → Actions para activar o botão 'Processar agora'."
+          else
+            {
+              echo "// Gerado automaticamente pelo workflow de deploy a partir do secret TRIGGER_TOKEN."
+              echo "export const GITHUB_TRIGGER = {"
+              echo "  repo: \"${{ github.repository }}\","
+              echo "  token: \"${TRIGGER_TOKEN}\""
+              echo "};"
+            } > web/trigger-config.js
+            echo "web/trigger-config.js gerado para ${{ github.repository }}."
+          fi
+
       - name: Deploy
         run: |
           firebase deploy \
