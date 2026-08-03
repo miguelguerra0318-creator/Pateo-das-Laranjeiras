@@ -19,10 +19,12 @@ Foste invocado pelo `scripts/queue.js` para processar um lote de pedidos de cont
 
 ## Campos do request (o que vem no batch)
 
-Cada `request` pode trazer, além de `briefText`/`segment`/`language`:
+Cada `request` traz:
+- **`briefText`** — o que a sócia escreveu.
 - **`platform`** — `instagram|facebook|airbnb|booking|blog|newsletter` (escolhida pela sócia).
 - **`contentType`** — tipo dentro da plataforma (ex.: `story|post|reel|carrossel|listing|room|article|newsletter|outreach`).
 - **`photo`** — `null` OU `{ driveFileId, folder, mode }` com `mode` = `"as-is"` (foto tal-qual) ou `"with-text"` (foto com texto composto por cima).
+- **`segment`/`language`** — **já não são escolhidos no formulário**: chegam como `null`/`"PT"` (defeitos, não escolhas). O **Dispatcher decide-os** a partir do conteúdo do brief.
 - **Revisão:** `adjustment` (texto do que mudar) + `previousOutputs` (rascunhos anteriores). Ver secção de revisão.
 
 A **plataforma escolhida manda** — ela determina o `type` (ver dispatcher).
@@ -31,7 +33,7 @@ A **plataforma escolhida manda** — ela determina o `type` (ver dispatcher).
 
 Para cada `request` em `.work/batch.json`:
 
-1. **Dispatcher** (`subagent_type: "dispatcher"`) — passa `briefText`, `platform`, `contentType`, e os hints `segment`/`language`. Recebes `{ type, segment, language, specialist, notes }`. (Numa **revisão**, salta o dispatcher — a plataforma/tipo/segmento já estão fixos.)
+1. **Dispatcher** (`subagent_type: "dispatcher"`) — passa `briefText`, `platform`, `contentType`. Recebes `{ type, segment, language, specialist, notes }` — o **segmento e o idioma são decididos por ele** a partir do brief. (Numa **revisão**, salta o dispatcher — a plataforma/tipo/segmento já estão fixos do processamento anterior.)
 
 2. **Especialista** — invoca conforme o `specialist`:
    - `"copywriter"` (opus) — para social/blog/other.

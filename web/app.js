@@ -302,7 +302,6 @@ function chosenPhotoMode() {
 
 function resetNewRequestForm() {
   $("#brief-text").value = "";
-  $("#brief-segment").value = "";
   platformSelect.value = "";
   contentTypeSelect.innerHTML = '<option value="" selected disabled>Escolha a plataforma primeiro</option>';
   contentTypeSelect.disabled = true;
@@ -317,8 +316,11 @@ $("#new-request-form").addEventListener("submit", async (e) => {
   if (!user) return;
 
   const briefText = $("#brief-text").value.trim();
-  const language = $("#brief-language").value;
-  const segment = $("#brief-segment").value || null;
+  // Idioma e segmento deixaram de ser escolhidos no formulário: o dispatcher
+  // infere o segmento a partir do conteúdo do brief; o idioma é PT por defeito
+  // (o brief pode pedir bilingue e o dispatcher passa a PT+EN).
+  const language = "PT";
+  const segment = null;
   const platform = platformSelect.value || null;
   const contentType = contentTypeSelect.value || null;
   const statusEl = $("#new-request-status");
