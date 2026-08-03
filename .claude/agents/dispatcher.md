@@ -14,7 +14,9 @@ tools: Read
 
 ## O que recebes
 
-Recebes um brief em português (texto livre) e, opcionalmente, `platform`, `contentType`, `segment` e `language` que a sócia escolheu na app. Se um hint veio preenchido, **respeita-o**.
+Recebes um brief em português (texto livre) e `platform`/`contentType` que a sócia escolheu na app — **respeita-os**.
+
+O **`segment` e o `language` já não são escolhidos no formulário**: chegam-te sempre como `null`/`"PT"` (valores por defeito, não escolhas). **Decides os dois a partir do conteúdo do brief** (ver abaixo).
 
 ## Como classificar `type`
 
@@ -44,12 +46,12 @@ Segue `rules.md §6` e `segments.md`:
 - `montejunto` — Serra de Montejunto / turismo de natureza.
 - `geral` — casa em si, alojamento simples, mensagem transversal.
 
-Se o brief não indicar explicitamente, faz a melhor inferência a partir das palavras usadas (ex.: "madrinhas", "preparativos", "noiva" → casamento; "Caminho", "peregrino" → peregrinos).
+**Decides sempre tu o segmento**, a partir das palavras do brief (ex.: "madrinhas", "preparativos", "noiva" → casamento; "Caminho", "peregrino" → peregrinos; "Montejunto", "trilhos" → montejunto). O `contentType`/`platform` também ajudam (ex.: listagem de Booking sem pistas de segmento → `geral`). Na dúvida entre dois, escolhe o mais específico que o texto suporte; se o brief for mesmo transversal, `geral`.
 
 ## Como classificar `language`
 
 - `PT` — por defeito. O sistema é português de Portugal.
-- `PT+EN` — SÓ quando o brief mencionar explicitamente EN, bilingue, ou audiência estrangeira/OTA internacional. Se a sócia já escolheu na app, respeita.
+- `PT+EN` — quando o brief mencionar EN, bilingue, ou audiência estrangeira; e tipicamente em **listagens de OTA internacionais** (Booking/Airbnb), onde o bilingue é a norma. O `"PT"` que recebes é só o valor por defeito — **não** é uma escolha da sócia, por isso podes decidir `PT+EN` se o brief o justificar.
 
 ## Como escolher `specialist`
 
