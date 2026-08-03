@@ -1,18 +1,26 @@
 name: Páteo Content Studio — deploy (Hosting + regras)
 
 # ─────────────────────────────────────────────────────────────────────────
-# 100% MANUAL — publica o site (Firebase Hosting) e/ou as regras do Firestore.
-# Corre quando disparado no separador Actions ("Run workflow").
+# Publica o site (Firebase Hosting) e as regras do Firestore.
+#
+# Corre de duas formas:
+#   • AUTOMÁTICO — a cada push no `main` (ex.: ao fundir um PR), publica
+#     hosting + regras. É o caminho normal: o que entra no main fica no ar.
+#   • MANUAL — no separador Actions ("Run workflow"), podendo escolher o
+#     que publicar (só hosting, só regras, ou ambos).
 #
 # Usa o secret FIREBASE_SERVICE_ACCOUNT (o mesmo do queue.js/sync). Para o
-# deploy funcionar, a conta de serviço precisa de DUAS permissões (uma vez),
+# deploy funcionar, a conta de serviço precisa de TRÊS permissões (uma vez),
 # na consola Google Cloud → IAM, para o email client_email do secret:
-#   • Firebase Hosting Admin   (roles/firebasehosting.admin)
-#   • Firebase Rules Admin     (roles/firebaserules.admin)
+#   • Firebase Hosting Admin      (roles/firebasehosting.admin)
+#   • Firebase Rules Admin        (roles/firebaserules.admin)
+#   • Service Usage Consumer      (roles/serviceusage.serviceUsageConsumer)
 # (Se faltarem, o deploy falha com erro de permissões — o log diz qual.)
 # ─────────────────────────────────────────────────────────────────────────
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       target:
@@ -80,9 +88,13 @@ jobs:
           fi
 
       - name: Deploy
+        env:
+          # Num push automático não há inputs — publica hosting + regras.
+          TARGET: ${{ inputs.target || 'hosting,firestore:rules' }}
         run: |
+          echo "A publicar: $TARGET"
           firebase deploy \
-            --only "${{ inputs.target }}" \
+            --only "$TARGET" \
             --project pateo-das-laranjeiras \
             --non-interactive \
             --force
