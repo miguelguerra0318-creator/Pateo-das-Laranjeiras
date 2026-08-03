@@ -51,10 +51,24 @@ O agente **não corre sozinho** (sem cron). É a **app** que o arranca quando a 
    - *Repository access:* **Only select repositories** → este repo.
    - *Permissions → Repository → Actions:* **Read and write**.
    - Gerar e **copiar** o token.
-3. **Meter o token na app:** copiar `web/trigger-config.example.js` para **`web/trigger-config.js`**, colar o token no campo `token`, e **`firebase deploy --only hosting`**.
-   - `trigger-config.js` está no `.gitignore` — **nunca** o commites (o GitHub revoga tokens que apareçam em repos públicos).
+3. **Meter o token como secret:** GitHub → **Settings → Secrets and variables → Actions → New repository secret**, com o nome **`TRIGGER_TOKEN`** e o token como valor.
+   - O workflow de deploy **gera** o `web/trigger-config.js` a partir deste secret em cada publicação. Assim o disparo sobrevive a deploys feitos pelo CI.
+   - `trigger-config.js` está no `.gitignore` — **nunca** o commites (o GitHub revoga tokens que apareçam em repos públicos). Localmente pode existir para `firebase serve`.
 
 Feito isto, a sócia só usa o site: submete → o agente arranca → os rascunhos aparecem em poucos minutos.
+
+---
+
+## Publicar o site (deploy)
+
+**Automático:** cada push no `main` (ex.: ao fundir um PR) corre o workflow **deploy** e publica **hosting + regras do Firestore**. Não é preciso terminal.
+
+**Manual:** Actions → **"Páteo Content Studio — deploy"** → *Run workflow*, podendo escolher publicar só o hosting, só as regras, ou ambos.
+
+Setup único na consola Google Cloud → **IAM**, dando à service account (`client_email` do secret `FIREBASE_SERVICE_ACCOUNT`) três funções:
+- **Firebase Hosting Admin**
+- **Firebase Rules Admin**
+- **Service Usage Consumer**
 
 ### 🔒 Segurança do site — registo para rever no futuro
 
