@@ -81,6 +81,53 @@ async function touchStatus(db, startTime, count, status = "ok", extra = {}) {
 
 // ─── Invocação do Claude Code headless ──────────────────────────────────
 
+// Quantos caracteres da cauda de stdout/stderr guardamos para diagnóstico.
+const OUTPUT_TAIL_CHARS = 4000;
+
+// Mensagens que a sócia lê na app. Frases simples, sem jargão nem nomes de
+// ficheiros — o detalhe técnico vai à parte, no campo `errorDetail`.
+const ENGINE_NO_RESULT =
+  "O assistente correu mas não conseguiu preparar os rascunhos deste pedido. " +
+  "Carregue em \"Tentar de novo\".";
+const ENGINE_UNKNOWN =
+  "O assistente falhou a meio e não chegou a escrever os rascunhos. " +
+  "Carregue em \"Tentar de novo\"; se voltar a acontecer, avise o administrador.";
+
+// Erro com duas caras: `message` técnico (vai para o log e para lastRunError)
+// e `userMessage` em PT-PT simples (vai para o qaNotes que a app mostra).
+function failure(message, userMessage) {
+  const err = new Error(message);
+  err.userMessage = userMessage;
+  return err;
+}
+
+function keepTail(buffer, chunk) {
+  const next = buffer + chunk;
+  return next.length > OUTPUT_TAIL_CHARS ? next.slice(-OUTPUT_TAIL_CHARS) : next;
+}
+
+// O Claude Code escreve os erros fatais (limite de utilização, credenciais
+// inválidas) no stdout, não no stderr — daí olharmos para os dois. Devolve
+// sempre uma frase simples; o texto em bruto nunca vai para a app (fica no
+// `errorDetail`, escondido atrás do "ver detalhe técnico").
+function explainClaudeFailure(tail) {
+  const low = (tail || "").trim().toLowerCase();
+
+  if (/spend limit|usage limit|rate limit|limit reached|quota/.test(low)) {
+    return "O assistente atingiu o limite de utilização da conta Claude deste mês. " +
+      "Tente de novo daqui a algumas horas ou peça ao administrador para aumentar o limite.";
+  }
+  if (/oauth|unauthorized|authentication|invalid api key|api key|401|403/.test(low)) {
+    return "O assistente não conseguiu entrar na conta Claude — as credenciais expiraram. " +
+      "É preciso o administrador renová-las.";
+  }
+  if (/overloaded|503|502|econnreset|etimedout|enotfound|network|fetch failed/.test(low)) {
+    return "O assistente não conseguiu ligar-se ao serviço da Claude (falha de rede ou " +
+      "serviço ocupado). Carregue em \"Tentar de novo\" daqui a alguns minutos.";
+  }
+  return ENGINE_UNKNOWN;
+}
+
 function invokeClaudeCode() {
   return new Promise((resolve, reject) => {
     const prompt =
@@ -105,30 +152,43 @@ function invokeClaudeCode() {
       windowsHide: true
     });
 
+    let stdout = "";
     let stderr = "";
-    proc.stdout.on("data", (chunk) => process.stdout.write(chunk));
+    proc.stdout.on("data", (chunk) => {
+      stdout = keepTail(stdout, chunk.toString());
+      process.stdout.write(chunk);
+    });
     proc.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
+      stderr = keepTail(stderr, chunk.toString());
       process.stderr.write(chunk);
     });
 
     const timer = setTimeout(() => {
       log(`Timeout de ${CLAUDE_TIMEOUT_MS / 1000}s atingido — a matar o processo.`);
       try { proc.kill("SIGKILL"); } catch { /* noop */ }
-      reject(new Error(`Timeout de ${CLAUDE_TIMEOUT_MS}ms`));
+      reject(failure(
+        `Timeout de ${CLAUDE_TIMEOUT_MS}ms`,
+        `O assistente demorou mais de ${Math.round(CLAUDE_TIMEOUT_MS / 60000)} minutos ` +
+        "e foi interrompido. Tente de novo com menos pedidos de cada vez."
+      ));
     }, CLAUDE_TIMEOUT_MS);
 
     proc.on("error", (err) => {
       clearTimeout(timer);
-      reject(new Error(`Falha ao lançar '${CLAUDE_BIN}': ${err.message}. Está o Claude Code instalado e no PATH?`));
+      reject(failure(
+        `Falha ao lançar '${CLAUDE_BIN}': ${err.message}. Está o Claude Code instalado e no PATH?`,
+        "O assistente não chegou a arrancar. Avise o administrador — é preciso verificar a instalação."
+      ));
     });
 
     proc.on("exit", (code, signal) => {
       clearTimeout(timer);
       if (code === 0) return resolve();
-      reject(new Error(
-        `Claude Code saiu com código=${code} signal=${signal}. ` +
-        `stderr (últimas linhas): ${stderr.slice(-500)}`
+      // stdout primeiro: é lá que o CLI escreve os erros fatais.
+      const tail = [stdout, stderr].map((s) => s.trim()).filter(Boolean).join("\n");
+      reject(failure(
+        `Claude Code saiu com código=${code} signal=${signal}. Últimas linhas: ${tail.slice(-500) || "(sem output)"}`,
+        explainClaudeFailure(tail)
       ));
     });
   });
@@ -270,13 +330,16 @@ async function compositePhotosFor(db, requests, results) {
 
 // ─── Marcar pedidos como erro em lote (para falhas globais) ─────────────
 
-async function markAllAsError(db, requests, reason) {
+// `reason` é a frase simples que a app mostra; `detail` é o texto técnico que
+// fica escondido atrás do "ver detalhe técnico" (útil para o administrador).
+async function markAllAsError(db, requests, reason, detail = null) {
   const batch = db.batch();
   for (const r of requests) {
     batch.update(db.collection("requests").doc(r.id), {
       status: "error",
       qaPassed: false,
       qaNotes: reason,
+      errorDetail: detail,
       processedAt: FieldValue.serverTimestamp()
     });
   }
@@ -341,7 +404,7 @@ async function main() {
     await invokeClaudeCode();
   } catch (err) {
     log(`Falha na invocação do Claude Code: ${err.message}`);
-    await markAllAsError(db, requests, `Falha do motor de geração: ${err.message}`);
+    await markAllAsError(db, requests, err.userMessage || ENGINE_UNKNOWN, err.message);
     await touchStatus(db, startTime, requests.length, "error", { lastRunError: err.message });
     process.exit(1);
   }
@@ -350,7 +413,7 @@ async function main() {
   if (!existsSync(OUTPUT_FILE)) {
     const msg = `Claude Code terminou mas ${OUTPUT_FILE} não foi criado.`;
     log(msg);
-    await markAllAsError(db, requests, msg);
+    await markAllAsError(db, requests, ENGINE_NO_RESULT, msg);
     await touchStatus(db, startTime, requests.length, "error", { lastRunError: msg });
     process.exit(1);
   }
@@ -361,7 +424,7 @@ async function main() {
   } catch (err) {
     const msg = `${OUTPUT_FILE} não é JSON válido: ${err.message}`;
     log(msg);
-    await markAllAsError(db, requests, msg);
+    await markAllAsError(db, requests, ENGINE_NO_RESULT, msg);
     await touchStatus(db, startTime, requests.length, "error", { lastRunError: msg });
     process.exit(1);
   }
@@ -369,7 +432,7 @@ async function main() {
   if (!output || !Array.isArray(output.results)) {
     const msg = `${OUTPUT_FILE} não tem o formato esperado (falta "results" array).`;
     log(msg);
-    await markAllAsError(db, requests, msg);
+    await markAllAsError(db, requests, ENGINE_NO_RESULT, msg);
     await touchStatus(db, startTime, requests.length, "error", { lastRunError: msg });
     process.exit(1);
   }
@@ -392,7 +455,8 @@ async function main() {
       doneBatch.update(db.collection("requests").doc(req.id), {
         status: "error",
         qaPassed: false,
-        qaNotes: "O motor não devolveu resultado para este pedido.",
+        qaNotes: ENGINE_NO_RESULT,
+        errorDetail: "O motor não devolveu resultado para este pedido (id ausente no output.json).",
         processedAt: FieldValue.serverTimestamp()
       });
       errorCount++;
@@ -409,6 +473,9 @@ async function main() {
       qaPassed: passed,
       qaNotes: result.qaNotes || null,
       results: Array.isArray(result.outputs) ? result.outputs : [],
+      // O QA reprovar não é uma avaria do sistema — não há detalhe técnico a
+      // guardar, e o de uma corrida anterior deixa de fazer sentido.
+      errorDetail: FieldValue.delete(),
       // Após reprocessar uma revisão, limpar os campos temporários.
       adjustment: FieldValue.delete(),
       previousOutputs: FieldValue.delete(),

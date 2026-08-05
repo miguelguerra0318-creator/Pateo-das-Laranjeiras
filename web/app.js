@@ -361,17 +361,10 @@ $("#new-request-form").addEventListener("submit", async (e) => {
     resetNewRequestForm();
     statusEl.classList.remove("hidden");
     statusEl.classList.add("success");
-    statusEl.textContent = "Pedido recebido. A pôr o assistente a trabalhar…";
-    try {
-      const fired = await triggerAgent();
-      statusEl.textContent = fired
-        ? "Pedido recebido — a processar agora. Os rascunhos aparecem em \"Os meus pedidos\" dentro de alguns minutos."
-        : "Pedido recebido. Aparece em \"Os meus pedidos\" assim que o assistente correr.";
-    } catch (err) {
-      console.error("Falha ao disparar o agente:", err);
-      statusEl.textContent =
-        "Pedido guardado. Não consegui arrancar o assistente automaticamente — use o botão \"Processar agora\" em Os meus pedidos.";
-    }
+    // O pedido fica em fila: nada arranca até a sócia carregar em "Processar
+    // agora", para poder juntar vários pedidos numa só corrida do assistente.
+    statusEl.textContent =
+      "Pedido guardado como pendente. Quando tiver todos os pedidos que quer, vá a \"Os meus pedidos\" e carregue em \"Processar agora\".";
   } catch (err) {
     console.error(err);
     statusEl.textContent =
@@ -412,29 +405,59 @@ let allRequestDocs = [];
 
 $("#archived-search").addEventListener("input", renderArchived);
 
-// Botão "Processar agora" — re-dispara o agente para pedidos pendentes.
-$("#process-now-btn")?.addEventListener("click", async () => {
+// Quantos pedidos o agente trata numa corrida (BATCH_LIMIT em scripts/queue.js).
+const BATCH_LIMIT = 10;
+let pendingCount = 0;
+let processNowCooldown = false;
+
+// Único ponto de arranque do assistente: nada corre ao submeter um pedido, só
+// quando se carrega aqui — assim juntam-se vários pedidos numa só corrida.
+function updateProcessNowButton() {
   const btn = $("#process-now-btn");
+  if (!btn) return;
+  btn.textContent = pendingCount
+    ? `Processar agora (${pendingCount})`
+    : "Processar agora";
+  btn.disabled = processNowCooldown || pendingCount === 0;
+}
+
+$("#process-now-btn")?.addEventListener("click", async () => {
   const st = $("#process-now-status");
-  btn.disabled = true;
+  processNowCooldown = true;
+  updateProcessNowButton();
   st.textContent = "A arrancar o assistente…";
+  const extra = pendingCount > BATCH_LIMIT
+    ? ` Vão os primeiros ${BATCH_LIMIT} de ${pendingCount} — carregue outra vez quando esta corrida acabar.`
+    : "";
   try {
     const fired = await triggerAgent();
     st.textContent = fired
-      ? "A processar — os pedidos pendentes ficam prontos em poucos minutos."
+      ? "A processar — os pedidos pendentes ficam prontos em poucos minutos." + extra
       : "Disparo não configurado. Fale com o administrador.";
   } catch (err) {
     console.error("Falha ao disparar o agente:", err);
     st.textContent = "Não foi possível arrancar. Tente novamente daqui a pouco.";
   } finally {
-    setTimeout(() => { btn.disabled = false; }, 8000);
+    setTimeout(() => {
+      processNowCooldown = false;
+      updateProcessNowButton();
+    }, 8000);
   }
 });
 
+// Até chegar o primeiro snapshot não sabemos quantos pendentes há — botão
+// desligado, para não gastar uma corrida à toa.
+updateProcessNowButton();
+
 function renderRequests(docs) {
   allRequestDocs = docs;
+  // A lista "Pendentes" mostra também os que estão a processar e os que deram
+  // erro; o contador do botão conta só os que a próxima corrida vai apanhar.
   const pending = docs.filter((s) => s.data().status !== "done");
   const done = docs.filter((s) => s.data().status === "done" && !s.data().archived);
+
+  pendingCount = docs.filter((s) => s.data().status === "pending").length;
+  updateProcessNowButton();
 
   fillRequestList(
     "#requests-pending",
@@ -531,6 +554,27 @@ function renderRequestItem(id, data) {
   return li;
 }
 
+// Pedidos processados antes desta versão guardaram texto técnico no qaNotes
+// (ex.: "Falha do motor de geração: Claude Code saiu com código=1 ..."). Isso
+// não se mostra à sócia — vai para o detalhe técnico e no lugar fica uma frase
+// que se percebe.
+const TECHNICAL_NOTE = /saiu com c[oó]digo=|falha do motor de gera|output\.json|stderr|timeout de \d+/i;
+const GENERIC_ENGINE_ERROR =
+  "O assistente falhou a meio e não chegou a escrever os rascunhos. " +
+  "Carregue em \"Tentar de novo\"; se voltar a acontecer, avise o administrador.";
+
+function errorTexts(data, fallback = GENERIC_ENGINE_ERROR) {
+  const note = (data.qaNotes || "").trim();
+  const technical = TECHNICAL_NOTE.test(note);
+  return {
+    plain: !note || technical ? fallback : note,
+    detail:
+      [technical ? note : null, data.errorDetail || null]
+        .filter(Boolean)
+        .join("\n\n") || null,
+  };
+}
+
 function renderRequestBody(id, data) {
   const wrap = document.createElement("div");
   const results = Array.isArray(data.results) ? data.results : [];
@@ -538,7 +582,7 @@ function renderRequestBody(id, data) {
   if (data.status === "pending") {
     const p = document.createElement("p");
     p.className = "muted";
-    p.textContent = "Ainda por processar. Use \"Processar agora\" no topo se demorar.";
+    p.textContent = "Ainda por processar. Carregue em \"Processar agora\" no topo quando quiser correr todos os pendentes.";
     wrap.appendChild(p);
     return wrap;
   }
@@ -550,10 +594,82 @@ function renderRequestBody(id, data) {
     return wrap;
   }
   if (data.status === "error") {
-    const p = document.createElement("p");
-    p.className = "error";
-    p.textContent = data.qaNotes || "Ocorreu um erro. Tente resubmeter o pedido.";
-    wrap.appendChild(p);
+    // Duas coisas diferentes caem aqui: uma avaria do assistente (sem
+    // rascunhos) e o revisor a chumbar os rascunhos. Dizer qual foi, em texto
+    // simples — o jargão fica escondido no "ver detalhe técnico".
+    const qaRejected = results.length > 0;
+
+    const lead = document.createElement("p");
+    lead.className = "error";
+    lead.textContent = qaRejected
+      ? "O revisor não aprovou os rascunhos deste pedido."
+      : "Este pedido não chegou a ser feito.";
+    wrap.appendChild(lead);
+
+    const { plain, detail } = errorTexts(
+      data,
+      qaRejected
+        ? "O revisor não deixou nota do motivo. Carregue em \"Tentar de novo\"."
+        : undefined
+    );
+    const why = document.createElement("p");
+    why.className = "muted";
+    why.textContent = plain;
+    wrap.appendChild(why);
+
+    if (qaRejected) {
+      const hint = document.createElement("p");
+      hint.className = "muted";
+      hint.textContent =
+        "Use \"Tentar de novo\" para o refazer, ou reescreva o pedido em Novo pedido a dizer o que quer diferente.";
+      wrap.appendChild(hint);
+    }
+
+    // Detalhe técnico: só para quem o quiser ver (administrador).
+    if (detail) {
+      const det = document.createElement("details");
+      det.className = "error-detail";
+      const sum = document.createElement("summary");
+      sum.textContent = "Ver detalhe técnico";
+      const pre = document.createElement("pre");
+      pre.textContent = detail;
+      det.append(sum, pre);
+      wrap.appendChild(det);
+    }
+
+    // Um pedido em erro não volta à fila sozinho (o agente só vai buscar
+    // pendentes) — este botão devolve-o a pendente para a próxima corrida.
+    const bar = document.createElement("div");
+    bar.className = "request-archive-bar";
+    const retryBtn = document.createElement("button");
+    retryBtn.className = "primary small";
+    retryBtn.type = "button";
+    retryBtn.textContent = "Tentar de novo";
+    const retryStatus = document.createElement("p");
+    retryStatus.className = "status-message hidden";
+    retryStatus.setAttribute("role", "status");
+    retryBtn.addEventListener("click", async () => {
+      retryBtn.disabled = true;
+      try {
+        await updateDoc(doc(db, "requests", id), {
+          status: "pending",
+          qaPassed: false,
+          qaNotes: null,
+          errorDetail: null,
+        });
+        retryStatus.classList.remove("hidden");
+        retryStatus.classList.add("success");
+        retryStatus.textContent =
+          "Voltou a pendente. Carregue em \"Processar agora\" no topo para o correr.";
+      } catch (err) {
+        console.error("Falha a repor o pedido em pendente:", err);
+        retryStatus.classList.remove("hidden", "success");
+        retryStatus.textContent = "Não foi possível. Verifique a internet e tente de novo.";
+        retryBtn.disabled = false;
+      }
+    });
+    bar.appendChild(retryBtn);
+    wrap.append(bar, retryStatus);
     return wrap;
   }
   if (!results.length) {
@@ -633,9 +749,9 @@ function renderRequestBody(id, data) {
         status: "pending",
         archived: false,
       });
-      try { await triggerAgent(); } catch (err) { console.error("Disparo do agente falhou:", err); }
       reviseStatus.classList.add("success");
-      reviseStatus.textContent = "Ajustes enviados — o rascunho vai ser refeito dentro de alguns minutos.";
+      reviseStatus.textContent =
+        "Ajustes guardados — o pedido voltou a pendente. Carregue em \"Processar agora\" no topo para refazer o rascunho.";
     } catch (err) {
       console.error("Falha ao pedir ajustes:", err);
       reviseStatus.textContent = "Não foi possível enviar. Verifique a internet e tente de novo.";
