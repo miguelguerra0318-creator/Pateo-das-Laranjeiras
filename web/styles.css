@@ -544,9 +544,12 @@ button.primary.small { box-shadow: 0 3px 10px rgba(34, 168, 132, 0.3); }
 }
 .gen-image-actions { margin-top: 0.6rem; }
 .gen-image-actions .copy-btn { text-decoration: none; display: inline-block; }
-.gen-prompt-details { margin-top: 0.5rem; font-size: 0.85rem; color: var(--ink-soft); }
-.gen-prompt-details summary { cursor: pointer; color: var(--teal-dk); }
-.gen-prompt-details pre {
+.gen-prompt-details,
+.error-detail { margin-top: 0.5rem; font-size: 0.85rem; color: var(--ink-soft); }
+.gen-prompt-details summary,
+.error-detail summary { cursor: pointer; color: var(--teal-dk); }
+.gen-prompt-details pre,
+.error-detail pre {
   white-space: pre-wrap;
   overflow-wrap: break-word;
   background: var(--surface-2);
