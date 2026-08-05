@@ -32,7 +32,7 @@ Ferramenta interna para preparar conteúdo de marketing do **Páteo das Laranjei
 
 1. A sócia entra na app web, escreve um pedido em linguagem natural (ex.: _"3 posts de Instagram para um grupo de casamento que chega dia 12"_).
 2. O pedido fica gravado no **Firestore** como `pending`.
-3. Ao submeter (ou ao carregar em "Processar agora"), a **app manda o GitHub Actions arrancar** o `queue.js`, que invoca o **Claude Code** headless. **Não há cron — só corre quando a sócia dispara.**
+3. Submeter **não arranca nada**: o pedido fica em fila. Quando a sócia carrega em **"Processar agora"**, a **app manda o GitHub Actions arrancar** o `queue.js`, que invoca o **Claude Code** headless e trata de **todos os pedidos pendentes de uma vez** (até 10 por corrida, `BATCH_LIMIT`). **Não há cron — só corre quando a sócia dispara.**
 4. O Claude Code lê o `/brand-brain/`, passa pelo **Dispatcher → especialista (Copywriter / OTA Editor) → Art Director → QA**, e escreve os resultados de volta no Firestore.
 5. A sócia recebe os rascunhos na app, com botões para **copiar** o texto e, quando há imagem, a **imagem já gerada** (Nano Banana) pronta a **descarregar**. Se a geração automática estiver desligada ou falhar, mostra antes o **prompt de imagem** para colar no Gemini à mão.
 
@@ -42,7 +42,7 @@ Ferramenta interna para preparar conteúdo de marketing do **Páteo das Laranjei
 
 ## Como a sócia dispara o agente (setup único do dono)
 
-O agente **não corre sozinho** (sem cron). É a **app** que o arranca quando a sócia submete um pedido ou carrega em **"Processar agora"**. Para isso, a app chama a API do GitHub para correr o workflow. Configuração (uma vez):
+O agente **não corre sozinho** (sem cron). É a **app** que o arranca quando a sócia carrega em **"Processar agora"** — o único ponto de disparo. Para isso, a app chama a API do GitHub para correr o workflow. Configuração (uma vez):
 
 1. **Tornar o repositório público** — GitHub → **Settings → General → Danger Zone → Change visibility → Public**. Isto dá **minutos de Actions ilimitados** e é necessário para o modelo escolhido.
    - *Antes de tornar público:* confirmar que não há segredos no repo. A service account do Firebase e as chaves **nunca foram commitadas** (estão no `.gitignore`); os **secrets do GitHub Actions** (`FIREBASE_SERVICE_ACCOUNT`, `CLAUDE_CODE_OAUTH_TOKEN`) continuam **privados** mesmo com o repo público.
@@ -55,7 +55,7 @@ O agente **não corre sozinho** (sem cron). É a **app** que o arranca quando a 
    - O workflow de deploy **gera** o `web/trigger-config.js` a partir deste secret em cada publicação. Assim o disparo sobrevive a deploys feitos pelo CI.
    - `trigger-config.js` está no `.gitignore` — **nunca** o commites (o GitHub revoga tokens que apareçam em repos públicos). Localmente pode existir para `firebase serve`.
 
-Feito isto, a sócia só usa o site: submete → o agente arranca → os rascunhos aparecem em poucos minutos.
+Feito isto, a sócia só usa o site: submete os pedidos que quiser → carrega em **"Processar agora"** → os rascunhos aparecem em poucos minutos.
 
 ---
 
@@ -126,8 +126,8 @@ Ordem de construção (ver `CLAUDE_CODE_BUILD_PROMPT.md`):
 ## Como a sócia usa a app
 
 1. **Entrar** — email e palavra-passe atribuídos (login Firebase).
-2. **Novo pedido** — escrever em português o que precisa (ex.: _"3 posts de Instagram para um grupo de casamento que chega dia 12"_). Opcionalmente escolher idioma (PT por defeito, ou PT+EN) e segmento. Submeter.
-3. **Os meus pedidos** — os rascunhos aparecem dentro de alguns minutos com estado (Pendente / A processar / Pronto / Erro); há um botão **"Processar agora"** se precisar de reprocessar pendentes. Em cada rascunho pronto:
+2. **Novo pedido** — escrever em português o que precisa (ex.: _"3 posts de Instagram para um grupo de casamento que chega dia 12"_), escolher a plataforma e o tipo de conteúdo, e submeter. O pedido fica **pendente**; pode fazer vários de seguida.
+3. **Os meus pedidos** — carregar em **"Processar agora"** (mostra quantos pendentes vão na corrida) e os rascunhos aparecem dentro de alguns minutos, com estado (Pendente / A processar / Pronto / Erro). Um pedido em **Erro** tem um botão **"Tentar de novo"** que o devolve a pendente. Em cada rascunho pronto:
    - **Copiar** — copia o texto para colar no Instagram/Facebook/Wix/OTA.
    - **Copiar prompt de imagem** — copia o prompt para colar no Gemini (app grátis, Nano Banana) e gerar a imagem à mão.
    - **⭐ Guardar na biblioteca** — arquiva o rascunho para reutilizar.
